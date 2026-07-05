@@ -35,7 +35,7 @@ commit.
 
 ## Phase 1 — Core Domain and State
 
-- [ ] **1.1 Project model and state store.** `loopwright/core/`: a `Project` with metadata
+- [x] **1.1 Project model and state store.** `loopwright/core/`: a `Project` with metadata
   (name, repo path, created date) persisted as YAML in `projects/<name>/project.yaml`,
   and a `Run` with an explicit state machine
   (`DRAFT → READY → RUNNING → PAUSED | PAUSED_LIMIT → RUNNING → REVIEW → DONE | FAILED | STOPPED`)
@@ -162,7 +162,7 @@ commit.
 | Phase | Tasks | Done |
 |-------|-------|------|
 | 0 — Skeleton | 1 | 1 |
-| 1 — Core | 2 | 0 |
+| 1 — Core | 2 | 1 |
 | 2 — Git | 1 | 0 |
 | 3 — VM | 2 | 0 |
 | 4 — Notify | 1 | 0 |
