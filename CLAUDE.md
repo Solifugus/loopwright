@@ -2,9 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Commands
+
+```bash
+make install   # create .venv and pip install -e ".[dev]"
+make test      # pytest (all tests)
+make lint      # ruff check loopwright tests
+make run       # run the loopwright CLI
+.venv/bin/pytest tests/test_cli.py -k version   # run a single test
+```
+
 ## Current State
 
-This repository is in the **pre-implementation phase**. It contains design documents and a development plan under `docs/` — source code lands as DEVPLAN tasks are completed. Read these before doing any work here:
+Implementation is underway, tracked in `docs/DEVPLAN.md`. The package skeleton is `loopwright/` with subpackages `core/` (domain + config), `gitctl/` (git control), `vmctl/` (virsh + SSH), `notify/`, `web/` (FastAPI/HTMX UI), `orchestrator/` (run loop), `agent/` (Primary Agent). Read these before doing any work here:
 
 - `docs/loopwright-design.md` — system design: components, git model, main loop, acceptance criteria
 - `docs/loopwrite-host-and-vm-setup.md` — host/VM environment setup guide

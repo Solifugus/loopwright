@@ -26,7 +26,7 @@ commit.
 
 ## Phase 0 — Project Skeleton
 
-- [ ] **0.1 Python scaffold.** Create `pyproject.toml` (project name `loopwright`), package
+- [x] **0.1 Python scaffold.** Create `pyproject.toml` (project name `loopwright`), package
   layout `loopwright/` with subpackage stubs (`core/`, `gitctl/`, `vmctl/`, `notify/`,
   `web/`, `orchestrator/`, `agent/`), dev tooling (ruff, pytest), a `loopwright` CLI
   entry point (`loopwright --version`), and a `Makefile` (or justfile) with `install`,
@@ -161,7 +161,7 @@ commit.
 
 | Phase | Tasks | Done |
 |-------|-------|------|
-| 0 — Skeleton | 1 | 0 |
+| 0 — Skeleton | 1 | 1 |
 | 1 — Core | 2 | 0 |
 | 2 — Git | 1 | 0 |
 | 3 — VM | 2 | 0 |
