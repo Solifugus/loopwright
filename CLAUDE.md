@@ -4,10 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current State
 
-This repository is in the **design phase**. It contains only design documents under `docs/` — there is no source code, build system, or test suite yet. Read both documents before doing any work here:
+This repository is in the **pre-implementation phase**. It contains design documents and a development plan under `docs/` — source code lands as DEVPLAN tasks are completed. Read these before doing any work here:
 
 - `docs/loopwright-design.md` — system design: components, git model, main loop, acceptance criteria
 - `docs/loopwrite-host-and-vm-setup.md` — host/VM environment setup guide
+- `docs/DEVPLAN.md` — the phased task list for building Loopwright itself; work tasks in order, one task per session, tick the checkbox and progress table in the same commit as the work
+
+**Decided stack:** Python + FastAPI, server-rendered Jinja2 + HTMX UI (no JS build step); `virsh` subprocess wrappers + SSH for VM control; OpenAI API for the Primary Agent; Claude Code as the in-VM worker agent; ntfy.sh notifications; file-based persistence (no database in MVP). Anything touching VMs must support a `--dry-run` mode testable without real VMs.
 
 Any implementation work must follow the architecture and rules laid out in those documents. If a decision would change the project's purpose, scope, architecture, or governing principles, ask the human first — that is the project's core rule: **"Autonomous execution, human-owned intent."**
 
