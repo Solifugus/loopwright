@@ -59,12 +59,12 @@ commit.
 
 ## Phase 3 — VM Control
 
-- [ ] **3.1 virsh wrapper.** `loopwright/vmctl/`: start/stop/status/snapshot-create/
+- [x] **3.1 virsh wrapper.** `loopwright/vmctl/`: start/stop/status/snapshot-create/
   snapshot-revert for named VMs via `virsh`, plus a `DryRunVM` fake that records calls.
   CLI: `loopwright vm status|start|stop|snapshot|revert <vm>`.
   *Done when:* dry-run tests pass; CLI works against a real VM if one exists (manual check).
 
-- [ ] **3.2 VM command execution.** SSH command runner (subprocess `ssh`, key-based) with
+- [x] **3.2 VM command execution.** SSH command runner (subprocess `ssh`, key-based) with
   timeout, captured output, and exit codes; helper to clone/pull the host repo inside a VM.
   Dry-run fake included.
   *Done when:* dry-run tests pass; a real `loopwright vm exec <vm> 'echo hi'` works (manual check).
@@ -164,7 +164,7 @@ commit.
 | 0 — Skeleton | 1 | 1 |
 | 1 — Core | 2 | 2 |
 | 2 — Git | 1 | 1 |
-| 3 — VM | 2 | 0 |
+| 3 — VM | 2 | 2 |
 | 4 — Notify | 1 | 0 |
 | 5 — Web UI | 4 | 0 |
 | 6 — Orchestrator | 5 | 0 |
