@@ -101,7 +101,7 @@ commit.
 
 ## Phase 6 — Orchestrator Loop
 
-- [ ] **6.1 Run engine skeleton.** `loopwright/orchestrator/`: the main loop as an explicit
+- [x] **6.1 Run engine skeleton.** `loopwright/orchestrator/`: the main loop as an explicit
   sequence of named, resumable steps with per-step results persisted to `run.json`; steps
   are pluggable so VM steps can be dry-run fakes. Crash/restart resumes at the last
   incomplete step.
@@ -167,7 +167,7 @@ commit.
 | 3 — VM | 2 | 2 |
 | 4 — Notify | 1 | 1 |
 | 5 — Web UI | 4 | 4 |
-| 6 — Orchestrator | 5 | 0 |
+| 6 — Orchestrator | 5 | 1 |
 | 7 — Primary Agent | 1 | 0 |
 | 8 — Finalization | 3 | 0 |
 

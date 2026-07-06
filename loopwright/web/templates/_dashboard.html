@@ -16,6 +16,20 @@
     {% if error %}<p class="error-text">{{ error }}</p>{% endif %}
   </div>
 
+  {% if run.steps %}
+  <h2>Steps</h2>
+  <table>
+    <tr><th>Step</th><th>Status</th><th>Finished</th></tr>
+    {% for step in run.steps %}
+    <tr>
+      <td><code>{{ step["name"] }}</code></td>
+      <td><span class="lvl {{ "lvl-info" if step["status"] == "ok" else "lvl-error" }}">{{ step["status"] }}</span></td>
+      <td class="muted">{{ step["finished"] }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
   <h2>Checkpoints</h2>
   {% if checkpoints %}
   <table>

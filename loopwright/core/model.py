@@ -89,6 +89,7 @@ class Project:
 class Run:
     state: RunState = RunState.DRAFT
     history: list[dict] = field(default_factory=list)
+    steps: list[dict] = field(default_factory=list)
 
     def transition(self, new_state: RunState) -> None:
         if new_state not in TRANSITIONS[self.state]:
@@ -100,12 +101,38 @@ class Run:
     def is_terminal(self) -> bool:
         return self.state in TERMINAL_STATES
 
+    def step_result(self, name: str) -> dict | None:
+        for entry in self.steps:
+            if entry["name"] == name:
+                return entry
+        return None
+
+    def record_step(self, name: str, status: str, started: str, detail: dict) -> dict:
+        """Record a step outcome, replacing any earlier result for the same step."""
+        entry = {
+            "name": name,
+            "status": status,
+            "started": started,
+            "finished": _now(),
+            "detail": detail,
+        }
+        for i, existing in enumerate(self.steps):
+            if existing["name"] == name:
+                self.steps[i] = entry
+                return entry
+        self.steps.append(entry)
+        return entry
+
     def to_dict(self) -> dict:
-        return {"state": self.state.value, "history": self.history}
+        return {"state": self.state.value, "history": self.history, "steps": self.steps}
 
     @classmethod
     def from_dict(cls, data: dict) -> "Run":
-        return cls(state=RunState(data["state"]), history=list(data["history"]))
+        return cls(
+            state=RunState(data["state"]),
+            history=list(data["history"]),
+            steps=list(data.get("steps", [])),
+        )
 
 
 class ProjectStore:
