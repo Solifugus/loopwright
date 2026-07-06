@@ -1,0 +1,24 @@
+# Loopwright host configuration.
+# Copy to ~/.config/loopwright/config.yaml and adjust.
+# Every key is optional; these are the values for Matthew's host.
+
+projects_dir: ~/development/loopwright/projects
+
+libvirt_uri: qemu:///system
+
+dev_vm:
+  domain: LoopWright_Dev
+  host: 192.168.122.20
+  user: master
+
+test_vm:
+  domain: loopwright_test
+  host: 192.168.122.120
+  user: master
+
+ntfy_server: https://ntfy.sh
+# Pick a hard-to-guess topic name; anyone who knows it can read your notifications.
+# ntfy_topic: loopwright-<random-suffix>
+
+# Name of the environment variable holding the OpenAI API key for the Primary Agent.
+openai_api_key_env: OPENAI_API_KEY

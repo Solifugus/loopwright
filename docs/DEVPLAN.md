@@ -43,7 +43,7 @@ commit.
   of transitions and round-trip persistence.
   *Done when:* tests prove legal/illegal transitions and reload-from-disk equality.
 
-- [ ] **1.2 Configuration.** `loopwright/core/config.py`: load host config from
+- [x] **1.2 Configuration.** `loopwright/core/config.py`: load host config from
   `~/.config/loopwright/config.yaml` (paths, VM names, SSH targets, ntfy topic, OpenAI key
   env var name) with validated defaults and a `loopwright config check` CLI command.
   *Done when:* missing/invalid config produces clear errors; example config file committed.
@@ -162,7 +162,7 @@ commit.
 | Phase | Tasks | Done |
 |-------|-------|------|
 | 0 — Skeleton | 1 | 1 |
-| 1 — Core | 2 | 1 |
+| 1 — Core | 2 | 2 |
 | 2 — Git | 1 | 0 |
 | 3 — VM | 2 | 0 |
 | 4 — Notify | 1 | 0 |

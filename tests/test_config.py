@@ -1,0 +1,120 @@
+import pytest
+
+from loopwright.cli import main
+from loopwright.core.config import (
+    Config,
+    ConfigError,
+    check_config,
+    config_path,
+    load_config,
+)
+
+
+def write(tmp_path, text):
+    path = tmp_path / "config.yaml"
+    path.write_text(text)
+    return path
+
+
+def test_missing_file_yields_defaults(tmp_path):
+    config = load_config(tmp_path / "nope.yaml")
+    assert config == Config()
+    assert config.dev_vm.domain == "LoopWright_Dev"
+    assert config.test_vm.host == "192.168.122.120"
+
+
+def test_empty_file_yields_defaults(tmp_path):
+    assert load_config(write(tmp_path, "")) == Config()
+
+
+def test_full_valid_config(tmp_path):
+    path = write(
+        tmp_path,
+        """
+projects_dir: /srv/lw/projects
+libvirt_uri: qemu:///session
+dev_vm: {domain: dev, host: 10.0.0.1, user: bob}
+test_vm: {domain: test, host: 10.0.0.2}
+ntfy_server: https://ntfy.example.com
+ntfy_topic: my-topic
+openai_api_key_env: MY_KEY
+""",
+    )
+    config = load_config(path)
+    assert str(config.projects_dir) == "/srv/lw/projects"
+    assert config.libvirt_uri == "qemu:///session"
+    assert config.dev_vm.user == "bob"
+    assert config.test_vm.user == "master"  # default preserved
+    assert config.ntfy_topic == "my-topic"
+    assert config.openai_api_key_env == "MY_KEY"
+
+
+def test_projects_dir_expands_user(tmp_path):
+    config = load_config(write(tmp_path, "projects_dir: ~/lw-projects"))
+    assert "~" not in str(config.projects_dir)
+
+
+def test_example_config_is_valid():
+    config = load_config("examples/config.example.yaml")
+    assert config.dev_vm.domain == "LoopWright_Dev"
+    assert config.test_vm.domain == "loopwright_test"
+
+
+@pytest.mark.parametrize(
+    "text,fragment",
+    [
+        ("- a\n- b\n", "top-level mapping"),
+        ("bogus_key: 1\n", "unknown keys"),
+        ("libvirt_uri: 42\n", "non-empty string"),
+        ("projects_dir: ''\n", "projects_dir"),
+        ("dev_vm: not-a-map\n", "expected a mapping"),
+        ("dev_vm: {domain: d}\n", "missing required keys"),
+        ("dev_vm: {domain: d, host: h, extra: x}\n", "unknown keys"),
+        ("dev_vm: {domain: d, host: 42}\n", "non-empty string"),
+        ("ntfy_topic: 123\n", "ntfy_topic"),
+        ("{invalid yaml::\n", "invalid YAML"),
+    ],
+)
+def test_invalid_configs_raise_clear_errors(tmp_path, text, fragment):
+    with pytest.raises(ConfigError, match=fragment):
+        load_config(write(tmp_path, text))
+
+
+def test_env_var_overrides_default_path(tmp_path, monkeypatch):
+    path = write(tmp_path, "libvirt_uri: qemu:///session")
+    monkeypatch.setenv("LOOPWRIGHT_CONFIG", str(path))
+    assert config_path() == path
+    assert load_config().libvirt_uri == "qemu:///session"
+
+
+def test_check_reports_writable_projects_dir_and_warnings(tmp_path, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    config = Config(projects_dir=tmp_path / "projects")
+    findings = check_config(config)
+    levels = {message: level for level, message in findings}
+    assert any("projects_dir writable" in m and lvl == "ok" for m, lvl in levels.items())
+    assert any("ntfy_topic not set" in m and lvl == "warn" for m, lvl in levels.items())
+    assert any("OPENAI_API_KEY not set" in m and lvl == "warn" for m, lvl in levels.items())
+    assert (tmp_path / "projects").is_dir()
+
+
+def test_check_flags_uncreatable_projects_dir(tmp_path):
+    blocker = tmp_path / "blocker"
+    blocker.write_text("i am a file")
+    config = Config(projects_dir=blocker / "projects")
+    findings = check_config(config)
+    assert any(level == "error" and "not creatable" in msg for level, msg in findings)
+
+
+def test_cli_config_check_ok(tmp_path, capsys):
+    path = write(tmp_path, f"projects_dir: {tmp_path}/projects\n")
+    assert main(["config", "check", "--config", str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "config file:" in out
+    assert "[ok" in out
+
+
+def test_cli_config_check_bad_file(tmp_path, capsys):
+    path = write(tmp_path, "bogus_key: 1\n")
+    assert main(["config", "check", "--config", str(path)]) == 1
+    assert "error:" in capsys.readouterr().out
