@@ -40,6 +40,16 @@ def build_parser() -> argparse.ArgumentParser:
     ex.add_argument("cmd")
     ex.add_argument("--timeout", type=int, default=600)
 
+    project_parser = subparsers.add_parser("project", help="project commands")
+    project_sub = project_parser.add_subparsers(dest="project_command")
+    create = project_sub.add_parser("create", help="create a new project in the store")
+    create.add_argument("name", help="lowercase letters, digits, '-' and '_'")
+    project_sub.add_parser("list", help="list projects")
+
+    serve_parser = subparsers.add_parser("serve", help="run the web UI")
+    serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser.add_argument("--port", type=int, default=8000)
+
     notify_parser = subparsers.add_parser("notify", help="notification commands")
     notify_sub = notify_parser.add_subparsers(dest="notify_command")
     notify_test = notify_sub.add_parser("test", help="send a test notification")
@@ -124,6 +134,38 @@ def cmd_vm(args) -> int:
     return 0
 
 
+def cmd_project(args) -> int:
+    from loopwright.core.config import load_config
+    from loopwright.core.model import ProjectStore
+
+    config = load_config()
+    store = ProjectStore(config.projects_dir)
+
+    if args.project_command == "create":
+        try:
+            repo_path = store.project_dir(args.name) / "repo.git"
+            store.create(args.name, str(repo_path))
+        except (ValueError, FileExistsError) as exc:
+            print(f"error: {exc}")
+            return 1
+        print(f"created project {args.name!r} in {store.project_dir(args.name)}")
+        return 0
+
+    for name in store.list_projects():
+        run = store.load_run(name)
+        print(f"{name}  [{run.state.value}]")
+    return 0
+
+
+def cmd_serve(host: str, port: int) -> int:
+    import uvicorn
+
+    from loopwright.web.app import create_app_from_config
+
+    uvicorn.run(create_app_from_config(), host=host, port=port)
+    return 0
+
+
 def cmd_notify_test(message: str) -> int:
     from loopwright.core.config import load_config
     from loopwright.notify.ntfy import Event, NullNotifier, from_config
@@ -150,6 +192,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "vm" and getattr(args, "vm_command", None):
         return cmd_vm(args)
+    if args.command == "project" and getattr(args, "project_command", None):
+        return cmd_project(args)
+    if args.command == "project":
+        parser.parse_args(["project", "--help"])
+        return 0
+    if args.command == "serve":
+        return cmd_serve(args.host, args.port)
     if args.command == "notify" and getattr(args, "notify_command", None) == "test":
         return cmd_notify_test(args.message)
     if args.command == "notify":

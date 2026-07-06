@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Loopwright{% endblock %}</title>
+  <script src="/static/htmx.min.js"></script>
+  <style>
+    :root {
+      --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2733; --muted: #66778a;
+      --line: #dde3ea; --accent: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    header {
+      background: var(--panel); border-bottom: 1px solid var(--line);
+      padding: 0.7rem 1.5rem; display: flex; align-items: baseline; gap: 0.75rem;
+    }
+    header a.brand { font-weight: 700; font-size: 1.15rem; color: var(--ink); text-decoration: none; }
+    header span.tag { color: var(--muted); font-size: 0.85rem; }
+    main { max-width: 60rem; margin: 1.5rem auto; padding: 0 1.5rem; }
+    h1 { font-size: 1.35rem; }
+    a { color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; background: var(--panel); }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
+    .muted { color: var(--muted); }
+    code { background: var(--bg); padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+    .state {
+      display: inline-block; padding: 0.1rem 0.6rem; border-radius: 999px;
+      font-size: 0.8rem; font-weight: 600; border: 1px solid transparent;
+    }
+    .state-DRAFT { background: #eef1f5; color: #475569; }
+    .state-READY { background: #e0edff; color: #1d4ed8; }
+    .state-RUNNING { background: #dcfce7; color: #15803d; }
+    .state-PAUSED, .state-PAUSED_LIMIT { background: #fef3c7; color: #b45309; }
+    .state-REVIEW { background: #ede9fe; color: #6d28d9; }
+    .state-DONE { background: #d1fae5; color: #047857; }
+    .state-FAILED { background: #fee2e2; color: #b91c1c; }
+    .state-STOPPED { background: #e5e7eb; color: #374151; }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="brand" href="/">Loopwright</a>
+    <span class="tag">autonomous execution, human-owned intent</span>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

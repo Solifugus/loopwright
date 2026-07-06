@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Projects</h1>
+{% if rows %}
+<table>
+  <tr><th>Name</th><th>State</th><th>Created</th></tr>
+  {% for row in rows %}
+  <tr>
+    <td><a href="/projects/{{ row.project.name }}">{{ row.project.name }}</a></td>
+    <td><span class="state state-{{ row.run.state.value }}">{{ row.run.state.value }}</span></td>
+    <td class="muted">{{ row.project.created }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<div class="panel">
+  <p>No projects yet.</p>
+  <p class="muted">Create one with <code>loopwright project create &lt;name&gt;</code>
+  (the in-browser wizard arrives in a later task).</p>
+</div>
+{% endif %}
+{% endblock %}

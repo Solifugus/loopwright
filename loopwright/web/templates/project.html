@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} — Loopwright{% endblock %}
+{% block content %}
+<h1>{{ project.name }}
+  <span class="state state-{{ run.state.value }}">{{ run.state.value }}</span>
+</h1>
+
+<div class="panel">
+  <p><strong>Repository:</strong> <code>{{ project.repo_path }}</code></p>
+  <p><strong>Created:</strong> <span class="muted">{{ project.created }}</span></p>
+</div>
+
+<h2>Run history</h2>
+{% if run.history %}
+<table>
+  <tr><th>From</th><th>To</th><th>At</th></tr>
+  {% for entry in run.history %}
+  <tr>
+    <td><span class="state state-{{ entry["from"] }}">{{ entry["from"] }}</span></td>
+    <td><span class="state state-{{ entry["to"] }}">{{ entry["to"] }}</span></td>
+    <td class="muted">{{ entry["at"] }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">No transitions yet — the run is still in its initial state.</p>
+{% endif %}
+{% endblock %}

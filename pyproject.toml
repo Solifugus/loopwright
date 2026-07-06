@@ -6,12 +6,16 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "pyyaml",
+    "fastapi",
+    "uvicorn",
+    "jinja2",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
     "ruff",
+    "httpx2",
 ]
 
 [project.scripts]
@@ -23,6 +27,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["loopwright*"]
+
+[tool.setuptools.package-data]
+"loopwright.web" = ["templates/*.html", "static/*"]
 
 [tool.ruff]
 line-length = 100

@@ -79,7 +79,7 @@ commit.
 
 ## Phase 5 — Web UI
 
-- [ ] **5.1 FastAPI skeleton.** `loopwright/web/`: app factory, Jinja2 + HTMX base layout,
+- [x] **5.1 FastAPI skeleton.** `loopwright/web/`: app factory, Jinja2 + HTMX base layout,
   project list and project detail pages reading from the Phase 1 store. `make run` serves
   on localhost.
   *Done when:* creating a project via CLI makes it appear in the browser.
@@ -166,7 +166,7 @@ commit.
 | 2 — Git | 1 | 1 |
 | 3 — VM | 2 | 2 |
 | 4 — Notify | 1 | 1 |
-| 5 — Web UI | 4 | 0 |
+| 5 — Web UI | 4 | 1 |
 | 6 — Orchestrator | 5 | 0 |
 | 7 — Primary Agent | 1 | 0 |
 | 8 — Finalization | 3 | 0 |

@@ -17,7 +17,7 @@ lint:
 	$(VENV)/bin/ruff check loopwright tests
 
 run:
-	$(VENV)/bin/loopwright
+	$(VENV)/bin/loopwright serve
 
 clean:
 	rm -rf $(VENV) *.egg-info loopwright.egg-info .pytest_cache .ruff_cache
