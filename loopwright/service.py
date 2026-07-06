@@ -16,6 +16,7 @@ from loopwright.core.model import (
     Run,
     RunState,
 )
+from loopwright.core.runlog import RunLog
 from loopwright.gitctl.repo import GitError, ProjectRepo
 from loopwright.notify.ntfy import Event
 
@@ -140,6 +141,10 @@ def control_run(store: ProjectStore, name: str, action: str, notifier=None) -> R
     if action == "start" and notifier is not None:
         notifier.notify(Event.RUN_STARTED, f"Run started for {name}", project=name)
     return run
+
+
+def run_log(store: ProjectStore, name: str) -> RunLog:
+    return RunLog(store.project_dir(name) / "logs")
 
 
 def list_checkpoints(store: ProjectStore, name: str) -> list[str]:

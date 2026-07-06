@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} logs — Loopwright{% endblock %}
+{% block content %}
+<h1><a href="/projects/{{ project.name }}">{{ project.name }}</a> — run log</h1>
+
+<form id="filters" class="panel">
+  <label>Level
+    <select name="level">
+      <option value="">all</option>
+      {% for level in levels %}<option value="{{ level }}">{{ level }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Step
+    <select name="step">
+      <option value="">all</option>
+      {% for step in steps %}<option value="{{ step }}">{{ step }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Show last
+    <select name="limit">
+      <option value="50">50</option>
+      <option value="200" selected>200</option>
+      <option value="1000">1000</option>
+    </select>
+  </label>
+</form>
+
+<div id="logtable"
+     hx-get="/projects/{{ project.name }}/logs/entries"
+     hx-include="#filters"
+     hx-trigger="load, change from:#filters, every 5s"
+     hx-swap="innerHTML">
+  <p class="muted">Loading…</p>
+</div>
+{% endblock %}

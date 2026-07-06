@@ -247,3 +247,60 @@ def test_dashboard_lists_checkpoints(store, client):
     repo.tag_checkpoint("hello-world")
     response = client.get("/projects/demo/dashboard")
     assert "checkpoint/0001-hello-world" in response.text
+
+
+# --- log viewer (task 5.4) ---
+
+
+def test_logs_page_renders_with_filters(store, client):
+    store.create("demo", "/nowhere/repo.git")
+    service.run_log(store, "demo").log("clone", "hello")
+    response = client.get("/projects/demo/logs")
+    assert response.status_code == 200
+    assert 'hx-get="/projects/demo/logs/entries"' in response.text
+    assert '<option value="clone">' in response.text  # step dropdown populated
+    assert '<option value="error">' in response.text
+
+
+def test_component_written_entries_appear(store, client):
+    store.create("demo", "/nowhere/repo.git")
+    log = service.run_log(store, "demo")
+    log.log("clone", "cloning repository")
+    log.log("deploy", "deploy failed", level="error", exit_code=3)
+
+    response = client.get("/projects/demo/logs/entries")
+    assert "cloning repository" in response.text
+    assert "deploy failed" in response.text
+    assert "lvl-error" in response.text
+
+
+def test_entries_filtered_by_level(store, client):
+    store.create("demo", "/nowhere/repo.git")
+    log = service.run_log(store, "demo")
+    log.log("a", "fine")
+    log.log("b", "broken", level="error")
+
+    response = client.get("/projects/demo/logs/entries?level=error")
+    assert "broken" in response.text
+    assert "fine" not in response.text
+
+
+def test_entries_limit_tails(store, client):
+    store.create("demo", "/nowhere/repo.git")
+    log = service.run_log(store, "demo")
+    for i in range(10):
+        log.log("s", f"entry-{i}")
+    response = client.get("/projects/demo/logs/entries?limit=2")
+    assert "entry-9" in response.text
+    assert "entry-0" not in response.text
+
+
+def test_logs_empty_state(store, client):
+    store.create("demo", "/nowhere/repo.git")
+    response = client.get("/projects/demo/logs/entries")
+    assert "No log entries match" in response.text
+
+
+def test_logs_unknown_project_404(client):
+    assert client.get("/projects/nope/logs").status_code == 404
+    assert client.get("/projects/nope/logs/entries").status_code == 404

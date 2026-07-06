@@ -1,0 +1,15 @@
+{% if entries %}
+<table>
+  <tr><th>Time</th><th>Level</th><th>Step</th><th>Message</th></tr>
+  {% for entry in entries | reverse %}
+  <tr>
+    <td class="muted nowrap">{{ entry.get("ts", "") }}</td>
+    <td><span class="lvl lvl-{{ entry.get("level", "info") }}">{{ entry.get("level", "?") }}</span></td>
+    <td><code>{{ entry.get("step", "") }}</code></td>
+    <td>{{ entry.get("message", "") }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">No log entries match.</p>
+{% endif %}

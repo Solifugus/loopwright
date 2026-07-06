@@ -95,7 +95,7 @@ commit.
   (Buttons drive state + notifications only; the real loop arrives in Phase 6.)
   *Done when:* state changes from the UI persist and notify.
 
-- [ ] **5.4 Log viewer.** Structured run log (`projects/<name>/logs/`, JSONL with timestamp,
+- [x] **5.4 Log viewer.** Structured run log (`projects/<name>/logs/`, JSONL with timestamp,
   step, level) written by orchestrator components, and a UI page that tails/filters it.
   *Done when:* log entries written by any component appear in the browser.
 
@@ -166,7 +166,7 @@ commit.
 | 2 — Git | 1 | 1 |
 | 3 — VM | 2 | 2 |
 | 4 — Notify | 1 | 1 |
-| 5 — Web UI | 4 | 3 |
+| 5 — Web UI | 4 | 4 |
 | 6 — Orchestrator | 5 | 0 |
 | 7 — Primary Agent | 1 | 0 |
 | 8 — Finalization | 3 | 0 |

@@ -6,7 +6,10 @@
 <div class="panel">
   <p><strong>Repository:</strong> <code>{{ project.repo_path }}</code></p>
   <p><strong>Created:</strong> <span class="muted">{{ project.created }}</span></p>
-  <p><a class="button" href="/projects/{{ project.name }}/packet">Design packet</a></p>
+  <p>
+    <a class="button" href="/projects/{{ project.name }}/packet">Design packet</a>
+    <a class="button" href="/projects/{{ project.name }}/logs">Run log</a>
+  </p>
 </div>
 
 {% include "_dashboard.html" %}

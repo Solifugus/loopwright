@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from loopwright import service
 from loopwright.core.model import IllegalTransition, ProjectStore
+from loopwright.core.runlog import LEVELS
 from loopwright.gitctl.repo import GitError
 from loopwright.notify.ntfy import NullNotifier
 
@@ -84,6 +85,22 @@ def create_app(store: ProjectStore, notifier=None) -> FastAPI:
             error = str(exc)
         context = _dashboard_context(request, name, error=error)
         return templates.TemplateResponse(request, "_dashboard.html", context)
+
+    @app.get("/projects/{name}/logs", response_class=HTMLResponse)
+    def logs_page(request: Request, name: str):
+        project = _load_or_404(name)
+        log = service.run_log(store, name)
+        return templates.TemplateResponse(
+            request, "logs.html", {"project": project, "steps": log.steps(), "levels": LEVELS}
+        )
+
+    @app.get("/projects/{name}/logs/entries", response_class=HTMLResponse)
+    def logs_entries(request: Request, name: str, level: str = "", step: str = "", limit: int = 200):
+        _load_or_404(name)
+        entries = service.run_log(store, name).read(
+            level=level or None, step=step or None, limit=limit
+        )
+        return templates.TemplateResponse(request, "_log_entries.html", {"entries": entries})
 
     @app.get("/projects/{name}/packet", response_class=HTMLResponse)
     def packet_editor(request: Request, name: str, saved: int = 0, error: str = ""):
