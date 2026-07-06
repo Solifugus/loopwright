@@ -90,7 +90,7 @@ commit.
   `design/main` and moves the run to `READY`.
   *Done when:* a project can go from nothing to an approved packet entirely in the browser.
 
-- [ ] **5.3 Run controls and dashboard.** Start / pause / resume / stop buttons wired to
+- [x] **5.3 Run controls and dashboard.** Start / pause / resume / stop buttons wired to
   the run state machine, current-state badge, checkpoint list, HTMX polling for updates.
   (Buttons drive state + notifications only; the real loop arrives in Phase 6.)
   *Done when:* state changes from the UI persist and notify.
@@ -166,7 +166,7 @@ commit.
 | 2 — Git | 1 | 1 |
 | 3 — VM | 2 | 2 |
 | 4 — Notify | 1 | 1 |
-| 5 — Web UI | 4 | 2 |
+| 5 — Web UI | 4 | 3 |
 | 6 — Orchestrator | 5 | 0 |
 | 7 — Primary Agent | 1 | 0 |
 | 8 — Finalization | 3 | 0 |

@@ -8,10 +8,42 @@ human explicitly approves it, which commits the drafts to ``design/main``.
 import shutil
 from pathlib import Path
 
-from loopwright.core.model import Project, ProjectStore, RunState
-from loopwright.gitctl.repo import ProjectRepo
+from loopwright.core.model import (
+    TRANSITIONS,
+    IllegalTransition,
+    Project,
+    ProjectStore,
+    Run,
+    RunState,
+)
+from loopwright.gitctl.repo import GitError, ProjectRepo
+from loopwright.notify.ntfy import Event
 
 PACKET_FILES = ("DESIGN.md", "DEVPLAN.md", "TESTPLAN.md")
+
+# Human-initiated run controls. Each maps to a target state; extra guards below
+# keep "start" and "resume" meaning what they say even though both target RUNNING.
+ACTION_TARGET = {
+    "start": RunState.RUNNING,
+    "pause": RunState.PAUSED,
+    "resume": RunState.RUNNING,
+    "stop": RunState.STOPPED,
+}
+
+_ACTION_FROM = {
+    "start": frozenset({RunState.READY}),
+    "pause": frozenset({RunState.RUNNING}),
+    "resume": frozenset({RunState.PAUSED, RunState.PAUSED_LIMIT}),
+    "stop": frozenset(
+        {
+            RunState.READY,
+            RunState.RUNNING,
+            RunState.PAUSED,
+            RunState.PAUSED_LIMIT,
+            RunState.REVIEW,
+        }
+    ),
+}
 
 
 def default_packet(name: str) -> dict[str, str]:
@@ -85,3 +117,35 @@ def approve_packet(store: ProjectStore, name: str) -> str:
         run.transition(RunState.READY)
         store.save_run(name, run)
     return commit
+
+
+def available_actions(run: Run) -> list[str]:
+    """Run-control buttons that are legal from the run's current state."""
+    return [
+        action
+        for action, sources in _ACTION_FROM.items()
+        if run.state in sources and ACTION_TARGET[action] in TRANSITIONS[run.state]
+    ]
+
+
+def control_run(store: ProjectStore, name: str, action: str, notifier=None) -> Run:
+    """Apply a human run-control action; raises IllegalTransition when not allowed."""
+    if action not in ACTION_TARGET:
+        raise ValueError(f"unknown run action {action!r}")
+    run = store.load_run(name)
+    if run.state not in _ACTION_FROM[action]:
+        raise IllegalTransition(f"cannot {action} while the run is {run.state.value}")
+    run.transition(ACTION_TARGET[action])
+    store.save_run(name, run)
+    if action == "start" and notifier is not None:
+        notifier.notify(Event.RUN_STARTED, f"Run started for {name}", project=name)
+    return run
+
+
+def list_checkpoints(store: ProjectStore, name: str) -> list[str]:
+    """Checkpoint tags for the project, or [] when the repo doesn't exist yet."""
+    project = store.load_project(name)
+    try:
+        return ProjectRepo(project.repo_path).checkpoints()
+    except GitError:
+        return []

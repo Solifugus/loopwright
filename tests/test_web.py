@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from loopwright import service
 from loopwright.core.model import ProjectStore, Run, RunState
 from loopwright.gitctl.repo import ProjectRepo
+from loopwright.notify.ntfy import Event, NullNotifier
 from loopwright.web.app import create_app
 
 
@@ -13,8 +14,13 @@ def store(tmp_path):
 
 
 @pytest.fixture
-def client(store):
-    return TestClient(create_app(store))
+def notifier():
+    return NullNotifier()
+
+
+@pytest.fixture
+def client(store, notifier):
+    return TestClient(create_app(store, notifier=notifier))
 
 
 def test_index_empty(client):
@@ -173,3 +179,71 @@ def test_approve_blocked_while_running_shows_error(store, client):
     editor = client.get(response.headers["location"])
     assert "RUNNING" in editor.text
     assert store.load_run("demo").state is RunState.RUNNING
+
+
+# --- run controls and dashboard (task 5.3) ---
+
+
+def ready_project(store, name="demo"):
+    store.create(name, "/nowhere/repo.git")
+    run = store.load_run(name)
+    run.transition(RunState.READY)
+    store.save_run(name, run)
+
+
+def test_detail_page_polls_dashboard(store, client):
+    ready_project(store)
+    response = client.get("/projects/demo")
+    assert 'hx-get="/projects/demo/dashboard"' in response.text
+    assert 'hx-trigger="every 5s"' in response.text
+
+
+def test_dashboard_shows_state_appropriate_buttons(store, client):
+    ready_project(store)
+    response = client.get("/projects/demo/dashboard")
+    assert response.status_code == 200
+    assert "/run/start" in response.text
+    assert "/run/stop" in response.text
+    assert "/run/pause" not in response.text
+
+
+def test_start_button_transitions_and_notifies(store, client, notifier):
+    ready_project(store)
+    response = client.post("/projects/demo/run/start")
+    assert response.status_code == 200
+    assert "state-RUNNING" in response.text
+    assert "/run/pause" in response.text  # buttons refreshed for the new state
+    assert store.load_run("demo").state is RunState.RUNNING
+    assert notifier.events == [(Event.RUN_STARTED, "Run started for demo", "demo")]
+
+
+def test_pause_and_stop_do_not_notify(store, client, notifier):
+    ready_project(store)
+    client.post("/projects/demo/run/start")
+    client.post("/projects/demo/run/pause")
+    client.post("/projects/demo/run/stop")
+    assert store.load_run("demo").state is RunState.STOPPED
+    assert [event for event, _, _ in notifier.events] == [Event.RUN_STARTED]
+
+
+def test_illegal_action_shows_error_and_preserves_state(store, client):
+    store.create("demo", "/nowhere/repo.git")  # still DRAFT
+    response = client.post("/projects/demo/run/start")
+    assert response.status_code == 200
+    assert "cannot start" in response.text
+    assert store.load_run("demo").state is RunState.DRAFT
+
+
+def test_unknown_action_shows_error(store, client):
+    ready_project(store)
+    response = client.post("/projects/demo/run/explode")
+    assert "unknown run action" in response.text
+    assert store.load_run("demo").state is RunState.READY
+
+
+def test_dashboard_lists_checkpoints(store, client):
+    service.create_project(store, "demo")
+    repo = ProjectRepo(store.project_dir("demo") / "repo.git")
+    repo.tag_checkpoint("hello-world")
+    response = client.get("/projects/demo/dashboard")
+    assert "checkpoint/0001-hello-world" in response.text

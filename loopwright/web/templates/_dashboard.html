@@ -1,0 +1,44 @@
+<div id="dashboard"
+     hx-get="/projects/{{ project.name }}/dashboard"
+     hx-trigger="every 5s"
+     hx-swap="outerHTML">
+
+  <div class="panel">
+    <p>
+      <span class="state state-{{ run.state.value }}">{{ run.state.value }}</span>
+      {% for action in actions %}
+      <button class="ctl ctl-{{ action }}"
+              hx-post="/projects/{{ project.name }}/run/{{ action }}"
+              hx-target="#dashboard" hx-swap="outerHTML">{{ action|capitalize }}</button>
+      {% endfor %}
+      {% if not actions %}<span class="muted">no actions available in this state</span>{% endif %}
+    </p>
+    {% if error %}<p class="error-text">{{ error }}</p>{% endif %}
+  </div>
+
+  <h2>Checkpoints</h2>
+  {% if checkpoints %}
+  <table>
+    <tr><th>Tag</th></tr>
+    {% for tag in checkpoints %}<tr><td><code>{{ tag }}</code></td></tr>{% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">No checkpoints yet.</p>
+  {% endif %}
+
+  <h2>Run history</h2>
+  {% if run.history %}
+  <table>
+    <tr><th>From</th><th>To</th><th>At</th></tr>
+    {% for entry in run.history %}
+    <tr>
+      <td><span class="state state-{{ entry["from"] }}">{{ entry["from"] }}</span></td>
+      <td><span class="state state-{{ entry["to"] }}">{{ entry["to"] }}</span></td>
+      <td class="muted">{{ entry["at"] }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">No transitions yet — the run is still in its initial state.</p>
+  {% endif %}
+</div>
