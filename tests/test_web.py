@@ -1,7 +1,9 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from loopwright import service
 from loopwright.core.model import ProjectStore, Run, RunState
+from loopwright.gitctl.repo import ProjectRepo
 from loopwright.web.app import create_app
 
 
@@ -81,3 +83,93 @@ def test_run_states_render_distinct_badges(store, client):
     store.save_run("demo", run)
     response = client.get("/")
     assert 'state-READY' in response.text
+
+
+# --- wizard and packet editor (task 5.2) ---
+
+
+def test_new_project_form_renders(client):
+    response = client.get("/projects/new")
+    assert response.status_code == 200
+    assert 'name="name"' in response.text
+
+
+def test_wizard_creates_project_and_redirects_to_editor(store, client):
+    response = client.post("/projects", data={"name": "demo"}, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/projects/demo/packet"
+    assert (store.project_dir("demo") / "project.yaml").is_file()
+    assert ProjectRepo(store.project_dir("demo") / "repo.git").branches()  # git repo exists
+
+    editor = client.get("/projects/demo/packet")
+    assert "DESIGN.md" in editor.text
+    assert "demo — Design" in editor.text
+
+
+def test_wizard_rejects_duplicate_name(store, client):
+    service.create_project(store, "demo")
+    response = client.post("/projects", data={"name": "demo"})
+    assert response.status_code == 400
+    assert "already exists" in response.text
+
+
+def test_wizard_rejects_invalid_name(client):
+    response = client.post("/projects", data={"name": "Bad Name!"})
+    assert response.status_code == 400
+    assert "invalid project name" in response.text
+
+
+def test_save_draft_persists_without_committing(store, client):
+    service.create_project(store, "demo")
+    repo = ProjectRepo(store.project_dir("demo") / "repo.git")
+    head_before = repo.head_of("design/main")
+
+    response = client.post(
+        "/projects/demo/packet/save",
+        data={"design": "# my design", "devplan": "# my plan", "testplan": "# my tests"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+    files = service.load_packet(store, "demo")
+    assert files["DESIGN.md"] == "# my design"
+    assert repo.head_of("design/main") == head_before  # saving never commits
+
+    editor = client.get("/projects/demo/packet?saved=1")
+    assert "Draft saved" in editor.text
+
+
+def test_approve_commits_and_marks_ready(store, client):
+    service.create_project(store, "demo")
+    repo = ProjectRepo(store.project_dir("demo") / "repo.git")
+    head_before = repo.head_of("design/main")
+
+    response = client.post(
+        "/projects/demo/packet/approve",
+        data={"design": "# final design", "devplan": "# plan", "testplan": "# tests"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/projects/demo"
+    assert repo.head_of("design/main") != head_before
+    assert store.load_run("demo").state is RunState.READY
+
+
+def test_approve_blocked_while_running_shows_error(store, client):
+    service.create_project(store, "demo")
+    run = store.load_run("demo")
+    run.transition(RunState.READY)
+    run.transition(RunState.RUNNING)
+    store.save_run("demo", run)
+
+    response = client.post(
+        "/projects/demo/packet/approve",
+        data={"design": "x", "devplan": "y", "testplan": "z"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert "error=" in response.headers["location"]
+
+    editor = client.get(response.headers["location"])
+    assert "RUNNING" in editor.text
+    assert store.load_run("demo").state is RunState.RUNNING

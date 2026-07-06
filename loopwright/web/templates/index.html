@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Projects</h1>
+<h1>Projects <a class="button" href="/projects/new">+ New project</a></h1>
 {% if rows %}
 <table>
   <tr><th>Name</th><th>State</th><th>Created</th></tr>
@@ -15,8 +15,8 @@
 {% else %}
 <div class="panel">
   <p>No projects yet.</p>
-  <p class="muted">Create one with <code>loopwright project create &lt;name&gt;</code>
-  (the in-browser wizard arrives in a later task).</p>
+  <p class="muted"><a href="/projects/new">Create one in the browser</a>
+  or run <code>loopwright project create &lt;name&gt;</code>.</p>
 </div>
 {% endif %}
 {% endblock %}

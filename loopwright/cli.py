@@ -135,17 +135,18 @@ def cmd_vm(args) -> int:
 
 
 def cmd_project(args) -> int:
+    from loopwright import service
     from loopwright.core.config import load_config
     from loopwright.core.model import ProjectStore
+    from loopwright.gitctl.repo import GitError
 
     config = load_config()
     store = ProjectStore(config.projects_dir)
 
     if args.project_command == "create":
         try:
-            repo_path = store.project_dir(args.name) / "repo.git"
-            store.create(args.name, str(repo_path))
-        except (ValueError, FileExistsError) as exc:
+            service.create_project(store, args.name)
+        except (ValueError, FileExistsError, GitError) as exc:
             print(f"error: {exc}")
             return 1
         print(f"created project {args.name!r} in {store.project_dir(args.name)}")

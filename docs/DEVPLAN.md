@@ -84,7 +84,7 @@ commit.
   on localhost.
   *Done when:* creating a project via CLI makes it appear in the browser.
 
-- [ ] **5.2 Creation wizard and packet editor.** New-project wizard (name → creates store
+- [x] **5.2 Creation wizard and packet editor.** New-project wizard (name → creates store
   entry + git repo via Phase 2) and a design-packet editor: edit DESIGN.md / DEVPLAN.md /
   TESTPLAN.md in the browser; an explicit **Approve packet** action commits them to
   `design/main` and moves the run to `READY`.
@@ -166,7 +166,7 @@ commit.
 | 2 — Git | 1 | 1 |
 | 3 — VM | 2 | 2 |
 | 4 — Notify | 1 | 1 |
-| 5 — Web UI | 4 | 1 |
+| 5 — Web UI | 4 | 2 |
 | 6 — Orchestrator | 5 | 0 |
 | 7 — Primary Agent | 1 | 0 |
 | 8 — Finalization | 3 | 0 |

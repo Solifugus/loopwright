@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}New project — Loopwright{% endblock %}
+{% block content %}
+<h1>New project</h1>
+{% if error %}
+<div class="panel error">{{ error }}</div>
+{% endif %}
+<form class="panel" method="post" action="/projects">
+  <label for="name"><strong>Project name</strong></label>
+  <p class="muted">Lowercase letters, digits, <code>-</code> and <code>_</code>, starting with a letter or digit.</p>
+  <p><input id="name" name="name" type="text" required autofocus
+            pattern="[a-z0-9][a-z0-9_-]*" placeholder="my-project"></p>
+  <p><button type="submit">Create project</button></p>
+  <p class="muted">This creates the project store entry, a starter design packet,
+  and the authoritative git repository with the full branch model.</p>
+</form>
+{% endblock %}
