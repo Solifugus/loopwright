@@ -50,7 +50,7 @@ commit.
 
 ## Phase 2 — Git Control
 
-- [ ] **2.1 Repo management.** `loopwright/gitctl/`: create a bare authoritative repo per
+- [x] **2.1 Repo management.** `loopwright/gitctl/`: create a bare authoritative repo per
   project, initialize the branch model (`design/main`, `agent/work`, `agent/test`,
   `release/candidate`, `main`), commit design-packet files to `design/main`, and tag
   checkpoints (`checkpoint/NNNN-slug`, auto-incrementing). All via subprocess `git`;
@@ -163,7 +163,7 @@ commit.
 |-------|-------|------|
 | 0 — Skeleton | 1 | 1 |
 | 1 — Core | 2 | 2 |
-| 2 — Git | 1 | 0 |
+| 2 — Git | 1 | 1 |
 | 3 — VM | 2 | 0 |
 | 4 — Notify | 1 | 0 |
 | 5 — Web UI | 4 | 0 |
