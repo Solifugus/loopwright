@@ -40,6 +40,11 @@ def build_parser() -> argparse.ArgumentParser:
     ex.add_argument("cmd")
     ex.add_argument("--timeout", type=int, default=600)
 
+    notify_parser = subparsers.add_parser("notify", help="notification commands")
+    notify_sub = notify_parser.add_subparsers(dest="notify_command")
+    notify_test = notify_sub.add_parser("test", help="send a test notification")
+    notify_test.add_argument("--message", default="If you can read this, notifications work.")
+
     return parser
 
 
@@ -119,6 +124,22 @@ def cmd_vm(args) -> int:
     return 0
 
 
+def cmd_notify_test(message: str) -> int:
+    from loopwright.core.config import load_config
+    from loopwright.notify.ntfy import Event, NullNotifier, from_config
+
+    config = load_config()
+    notifier = from_config(config)
+    if isinstance(notifier, NullNotifier):
+        print("ntfy_topic is not set in config; nothing sent")
+        return 1
+    if notifier.notify(Event.TEST, message):
+        print(f"sent to {notifier.url}")
+        return 0
+    print(f"error: could not deliver to {notifier.url}")
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -129,6 +150,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "vm" and getattr(args, "vm_command", None):
         return cmd_vm(args)
+    if args.command == "notify" and getattr(args, "notify_command", None) == "test":
+        return cmd_notify_test(args.message)
+    if args.command == "notify":
+        parser.parse_args(["notify", "--help"])
+        return 0
     if args.command == "vm":
         parser.parse_args(["vm", "--help"])
         return 0

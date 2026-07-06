@@ -71,7 +71,7 @@ commit.
 
 ## Phase 4 — Notifications
 
-- [ ] **4.1 ntfy notifier.** `loopwright/notify/`: event types from the design doc
+- [x] **4.1 ntfy notifier.** `loopwright/notify/`: event types from the design doc
   (run started, checkpoint passed, deployment passed, repeated failure, limit reached,
   approval needed, candidate ready) posted to a configurable ntfy topic; a `NullNotifier`
   for tests; `loopwright notify test` CLI command.
@@ -165,7 +165,7 @@ commit.
 | 1 — Core | 2 | 2 |
 | 2 — Git | 1 | 1 |
 | 3 — VM | 2 | 2 |
-| 4 — Notify | 1 | 0 |
+| 4 — Notify | 1 | 1 |
 | 5 — Web UI | 4 | 0 |
 | 6 — Orchestrator | 5 | 0 |
 | 7 — Primary Agent | 1 | 0 |

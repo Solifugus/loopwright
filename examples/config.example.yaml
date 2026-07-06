@@ -18,7 +18,7 @@ test_vm:
 
 ntfy_server: https://ntfy.sh
 # Pick a hard-to-guess topic name; anyone who knows it can read your notifications.
-# ntfy_topic: loopwright-<random-suffix>
+ntfy_topic: loopwright-solifugus
 
 # Name of the environment variable holding the OpenAI API key for the Primary Agent.
 openai_api_key_env: OPENAI_API_KEY
