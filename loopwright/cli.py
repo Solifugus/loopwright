@@ -46,6 +46,12 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("name", help="lowercase letters, digits, '-' and '_'")
     project_sub.add_parser("list", help="list projects")
 
+    run_parser = subparsers.add_parser("run", help="orchestrator run commands")
+    run_sub = run_parser.add_subparsers(dest="run_command")
+    run_dev = run_sub.add_parser("dev", help="run one Developer VM coding session")
+    run_dev.add_argument("project")
+    run_dev.add_argument("--timeout", type=int, default=3600, help="worker timeout in seconds")
+
     serve_parser = subparsers.add_parser("serve", help="run the web UI")
     serve_parser.add_argument("--host", default="127.0.0.1")
     serve_parser.add_argument("--port", type=int, default=8000)
@@ -158,6 +164,34 @@ def cmd_project(args) -> int:
     return 0
 
 
+def cmd_run_dev(project: str, timeout: int) -> int:
+    from loopwright.core.config import load_config
+    from loopwright.core.model import ProjectStore
+    from loopwright.notify.ntfy import from_config
+    from loopwright.orchestrator.devstep import dev_step_from_config
+    from loopwright.orchestrator.engine import Engine, EngineError, StepFailed
+
+    config = load_config()
+    store = ProjectStore(config.projects_dir)
+    try:
+        step = dev_step_from_config(config, store, project, timeout=timeout)
+        engine = Engine(store, project, [step], notifier=from_config(config))
+        outcome = engine.run()
+    except FileNotFoundError:
+        print(f"error: no project named {project!r}")
+        return 1
+    except (EngineError, StepFailed) as exc:
+        print(f"error: {exc}")
+        return 1
+    run = store.load_run(project)
+    print(f"outcome: {outcome} (run state: {run.state.value})")
+    for step_result in run.steps:
+        print(f"  {step_result['name']}: {step_result['status']}")
+        if step_result["detail"].get("checkpoint"):
+            print(f"    checkpoint: {step_result['detail']['checkpoint']}")
+    return 0 if outcome in ("completed", "paused-limit") else 1
+
+
 def cmd_serve(host: str, port: int) -> int:
     import uvicorn
 
@@ -200,6 +234,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "serve":
         return cmd_serve(args.host, args.port)
+    if args.command == "run" and getattr(args, "run_command", None) == "dev":
+        return cmd_run_dev(args.project, args.timeout)
+    if args.command == "run":
+        parser.parse_args(["run", "--help"])
+        return 0
     if args.command == "notify" and getattr(args, "notify_command", None) == "test":
         return cmd_notify_test(args.message)
     if args.command == "notify":

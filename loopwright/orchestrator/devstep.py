@@ -1,0 +1,197 @@
+"""Developer VM step: run the coding agent in the VM and harvest a checkpoint.
+
+Git flow keeps the trust boundary clean — the VM never gets credentials to
+reach the host. Instead the host does all transfers itself:
+
+1. host force-pushes ``design/main`` + ``agent/work`` to a bare repo on the VM
+2. the VM gets a fresh working clone of ``agent/work`` (disposable, like the VM)
+3. the worker agent (Claude Code) implements ONE task, commits, and pushes to
+   the VM-local bare repo
+4. the host fetches ``agent/work`` back and tags the checkpoint
+
+Outcome classification from the worker's output and the repo state:
+
+* usage-limit marker in output  → :class:`UsageLimitReached` (run parks in
+  ``PAUSED_LIMIT``; the engine notifies)
+* non-zero exit                 → :class:`StepFailed`
+* zero exit but no new commits  → :class:`StepFailed`, unless the worker
+  printed the all-done marker, which is a successful no-op
+"""
+
+import posixpath
+import shlex
+
+from loopwright.core.config import Config
+from loopwright.core.model import ProjectStore
+from loopwright.gitctl.repo import ProjectRepo, WORK_BRANCH
+from loopwright.notify.ntfy import Event
+from loopwright.orchestrator.engine import Step, StepFailed, UsageLimitReached
+from loopwright.vmctl.ssh import SSHTimeout
+from loopwright.vmctl.vm import LibvirtVM
+
+ALL_DONE_MARKER = "ALL TASKS COMPLETE"
+
+# Substrings (lowercased) that mean the worker ran out of AI usage rather
+# than genuinely failing.
+LIMIT_MARKERS = ("usage limit", "rate limit", "rate_limit", "quota exceeded")
+
+PROMPT_TEMPLATE = """\
+You are Loopwright's worker agent for the project {project!r}. You are in a \
+git working copy on branch {branch}. The design packet is in this directory: \
+DESIGN.md (what to build), DEVPLAN.md (the task list), TESTPLAN.md (how it is verified).
+
+Do exactly this:
+1. Read the design packet.
+2. Find the FIRST unchecked task (- [ ]) in DEVPLAN.md.
+3. Implement that ONE task completely, with tests for any logic you add.
+4. Run the project's test suite and make it pass.
+5. Tick the task's checkbox in DEVPLAN.md.
+6. Commit everything with message 'Task <id>: <short summary>' and push to origin {branch}.
+
+Hard rules:
+- Implement only that single task, then stop.
+- Never modify DESIGN.md, PRINCIPLES.md, or AGENT_RULES.md.
+- Never touch files outside this working copy; no deployments, no network \
+services, no spending, no contacting anyone.
+- If EVERY task in DEVPLAN.md is already checked, change nothing, do not \
+commit, and print exactly: {all_done}
+"""
+
+
+def compose_prompt(project: str, branch: str = WORK_BRANCH) -> str:
+    return PROMPT_TEMPLATE.format(project=project, branch=branch, all_done=ALL_DONE_MARKER)
+
+
+def is_usage_limit(output: str) -> bool:
+    lowered = output.lower()
+    return any(marker in lowered for marker in LIMIT_MARKERS)
+
+
+def default_worker_command(work_dir: str, prompt: str) -> str:
+    return (
+        f"cd {shlex.quote(work_dir)} && "
+        f"claude --dangerously-skip-permissions -p {shlex.quote(prompt)}"
+    )
+
+
+class DeveloperVMStep:
+    """Callable engine step; collaborators are injected so tests use fakes."""
+
+    name = "dev-code"
+
+    def __init__(
+        self,
+        project: str,
+        repo: ProjectRepo,
+        vm,
+        ssh,
+        vm_repo_url: str,
+        remote_repo_dir: str,
+        remote_work_dir: str,
+        worker_command=default_worker_command,
+        timeout: int = 3600,
+        checkpoint_slug: str = "worker-session",
+    ):
+        self.project = project
+        self.repo = repo
+        self.vm = vm
+        self.ssh = ssh
+        self.vm_repo_url = vm_repo_url
+        self.remote_repo_dir = remote_repo_dir
+        self.remote_work_dir = remote_work_dir
+        self.worker_command = worker_command
+        self.timeout = timeout
+        self.checkpoint_slug = checkpoint_slug
+
+    def _sync_repo_to_vm(self, ctx) -> None:
+        parent = posixpath.dirname(self.remote_repo_dir) or "."
+        init = self.ssh.run(
+            f"mkdir -p {shlex.quote(parent)} && "
+            f"git init --bare -q {shlex.quote(self.remote_repo_dir)}"
+        )
+        if not init.ok:
+            raise StepFailed(f"could not init repo on VM: {init.stderr.strip()}")
+        self.repo.push_to(self.vm_repo_url, ["design/main", WORK_BRANCH])
+        work = shlex.quote(self.remote_work_dir)
+        # Fresh clone, then bring the approved design packet into agent/work:
+        # design/main may have moved (re-approvals) since the branch fanned out.
+        clone = self.ssh.run(
+            f"rm -rf {work} && "
+            f"git clone -q -b {WORK_BRANCH} {shlex.quote(self.remote_repo_dir)} {work} && "
+            f"git -C {work} -c user.name=Loopwright -c user.email=loopwright@localhost "
+            f"merge -q --no-edit origin/design/main"
+        )
+        if not clone.ok:
+            raise StepFailed(
+                "could not prepare working copy on VM (clone or design/main merge "
+                f"failed): {clone.stderr.strip()}"
+            )
+        ctx.log.log(self.name, "repo synced to developer VM (agent/work includes design/main)")
+
+    def __call__(self, ctx) -> dict:
+        if not self.vm.is_running():
+            ctx.log.log(self.name, "starting developer VM")
+            self.vm.start()
+
+        self._sync_repo_to_vm(ctx)
+        before = self.repo.head_of(WORK_BRANCH)
+
+        prompt = compose_prompt(self.project)
+        ctx.log.log(self.name, "invoking worker agent")
+        try:
+            result = self.ssh.run(
+                self.worker_command(self.remote_work_dir, prompt), timeout=self.timeout
+            )
+        except SSHTimeout as exc:
+            raise StepFailed(f"worker agent timed out: {exc}") from exc
+
+        output = (result.stdout or "") + (result.stderr or "")
+        tail = output[-1500:]
+
+        if is_usage_limit(output):
+            raise UsageLimitReached("worker agent hit its usage limit")
+        if not result.ok:
+            raise StepFailed(f"worker agent exited with {result.exit_code}: {tail[-300:]}")
+
+        self.repo.fetch_from(self.vm_repo_url, WORK_BRANCH)
+        after = self.repo.head_of(WORK_BRANCH)
+
+        if after == before:
+            if ALL_DONE_MARKER in output:
+                ctx.log.log(self.name, "worker reports all tasks complete")
+                return {"tasks_remaining": False, "commit": after, "output_tail": tail}
+            raise StepFailed("worker agent pushed no new commits on " + WORK_BRANCH)
+
+        tag = self.repo.tag_checkpoint(self.checkpoint_slug)
+        ctx.log.log(self.name, f"checkpoint tagged: {tag}")
+        if ctx.notifier is not None:
+            ctx.notifier.notify(
+                Event.CHECKPOINT_PASSED, f"{tag} at {after[:10]}", project=self.project
+            )
+        return {
+            "tasks_remaining": True,
+            "commit": after,
+            "checkpoint": tag,
+            "output_tail": tail,
+        }
+
+
+def dev_step_from_config(
+    config: Config, store: ProjectStore, project: str, timeout: int = 3600
+) -> Step:
+    """Build the real Developer VM step for a project from host config."""
+    from loopwright.vmctl.ssh import SSHRunner
+
+    meta = store.load_project(project)
+    vm_config = config.dev_vm
+    impl = DeveloperVMStep(
+        project=project,
+        repo=ProjectRepo(meta.repo_path),
+        vm=LibvirtVM(vm_config.domain, config.libvirt_uri),
+        ssh=SSHRunner(vm_config.host, vm_config.user),
+        vm_repo_url=f"{vm_config.user}@{vm_config.host}:loopwright/{project}.git",
+        remote_repo_dir=f"loopwright/{project}.git",
+        remote_work_dir=f"loopwright/{project}",
+        timeout=timeout,
+    )
+    return Step(impl.name, impl)

@@ -107,7 +107,7 @@ commit.
   incomplete step.
   *Done when:* a fully-faked run walks every step, is killed mid-run, and resumes correctly.
 
-- [ ] **6.2 Developer VM step.** Compose the coding-agent prompt from the design packet,
+- [x] **6.2 Developer VM step.** Compose the coding-agent prompt from the design packet,
   invoke Claude Code non-interactively in the Developer VM (via 3.2), require commit +
   push of a checkpoint, detect success/failure/usage-limit from output, tag the checkpoint
   (via 2.1). Usage limit → `PAUSED_LIMIT` + notification.
@@ -167,7 +167,7 @@ commit.
 | 3 — VM | 2 | 2 |
 | 4 — Notify | 1 | 1 |
 | 5 — Web UI | 4 | 4 |
-| 6 — Orchestrator | 5 | 1 |
+| 6 — Orchestrator | 5 | 2 |
 | 7 — Primary Agent | 1 | 0 |
 | 8 — Finalization | 3 | 0 |
 

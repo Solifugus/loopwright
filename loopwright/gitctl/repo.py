@@ -13,6 +13,7 @@ the design doc:
 Checkpoints are annotated tags named ``checkpoint/NNNN-slug``.
 """
 
+import os
 import re
 import subprocess
 import tempfile
@@ -33,11 +34,20 @@ class GitError(Exception):
     """A git command failed; the message carries the command and stderr."""
 
 
-def _run_git(cwd: Path, *args: str) -> str:
+# Non-interactive SSH for git push/fetch against VM-hosted repos: fail fast
+# instead of hanging on a password prompt.
+REMOTE_GIT_SSH = "ssh -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new"
+
+
+def _run_git(cwd: Path, *args: str, remote: bool = False) -> str:
+    env = None
+    if remote:
+        env = {**os.environ, "GIT_SSH_COMMAND": REMOTE_GIT_SSH}
     result = subprocess.run(
         ["git", *GIT_IDENTITY, "-C", str(cwd), *args],
         capture_output=True,
         text=True,
+        env=env,
     )
     if result.returncode != 0:
         raise GitError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
@@ -98,6 +108,14 @@ class ProjectRepo:
             _run_git(clone, "commit", "--allow-empty", "-m", message)
             _run_git(clone, "push", "--quiet", "origin", DESIGN_BRANCH)
             return _run_git(clone, "rev-parse", "HEAD").strip()
+
+    def push_to(self, url: str, refs: list[str]) -> None:
+        """Force-push the given branches to another repository (e.g. on a VM)."""
+        _run_git(self.path, "push", "--force", "--quiet", url, *refs, remote=True)
+
+    def fetch_from(self, url: str, branch: str) -> None:
+        """Fetch a branch from another repository, force-updating the local ref."""
+        _run_git(self.path, "fetch", "--quiet", url, f"+{branch}:{branch}", remote=True)
 
     def branches(self) -> list[str]:
         out = _run_git(self.path, "for-each-ref", "--format=%(refname:short)", "refs/heads")

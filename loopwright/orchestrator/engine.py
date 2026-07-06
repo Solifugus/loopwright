@@ -26,10 +26,12 @@ from typing import Callable
 
 from loopwright.core.model import ProjectStore, Run, RunState
 from loopwright.core.runlog import RunLog
+from loopwright.notify.ntfy import Event
 
 COMPLETED = "completed"
 FAILED = "failed"
 INTERRUPTED = "interrupted"
+PAUSED_LIMIT = "paused-limit"
 
 
 class EngineError(Exception):
@@ -38,6 +40,14 @@ class EngineError(Exception):
 
 class StepFailed(Exception):
     """Raised by a step to fail the run with a human-readable reason."""
+
+
+class UsageLimitReached(Exception):
+    """Raised by a step when the worker agent hit its usage limit.
+
+    The engine parks the run in ``PAUSED_LIMIT`` instead of failing it; the
+    step is re-run from scratch once the run is resumed.
+    """
 
 
 @dataclass
@@ -104,6 +114,18 @@ class Engine:
             self.log.log(step.name, "step started")
             try:
                 detail = step.fn(self.ctx) or {}
+            except UsageLimitReached as exc:
+                run = self._load_running()
+                run.record_step(step.name, "limit", started, {"reason": str(exc)})
+                if run.state is RunState.RUNNING:
+                    run.transition(RunState.PAUSED_LIMIT)
+                self.store.save_run(self.project, run)
+                self.log.log(step.name, f"usage limit reached: {exc}", level="warning")
+                if self.ctx.notifier is not None:
+                    self.ctx.notifier.notify(
+                        Event.LIMIT_REACHED, f"{self.project}: {exc}", project=self.project
+                    )
+                return PAUSED_LIMIT
             except StepFailed as exc:
                 run = self._load_running()
                 run.record_step(step.name, "failed", started, {"error": str(exc)})
