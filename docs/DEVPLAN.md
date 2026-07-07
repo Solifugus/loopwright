@@ -131,7 +131,7 @@ commit.
 
 ## Phase 7 — Primary Agent
 
-- [ ] **7.1 Design-packet assistant.** `loopwright/agent/`: OpenAI-backed chat panel in the
+- [x] **7.1 Design-packet assistant.** `loopwright/agent/`: OpenAI-backed chat panel in the
   packet editor that drafts/refines DESIGN.md, DEVPLAN.md, TESTPLAN.md into the editor
   buffers. It can never write to the repo — only the human's **Approve packet** commits.
   Provider code isolated in one module. Mockable client; tests use the mock.
@@ -168,7 +168,7 @@ commit.
 | 4 — Notify | 1 | 1 |
 | 5 — Web UI | 4 | 4 |
 | 6 — Orchestrator | 5 | 5 |
-| 7 — Primary Agent | 1 | 0 |
+| 7 — Primary Agent | 1 | 1 |
 | 8 — Finalization | 3 | 0 |
 
 Update checkboxes and this table in the same commit as the work.

@@ -78,6 +78,15 @@
     button.ctl-pause { background: #b45309; border-color: #b45309; color: #fff; }
     button.ctl-stop { background: #b91c1c; border-color: #b91c1c; color: #fff; }
     button.ctl-rollback { font-size: 0.8rem; padding: 0.2rem 0.6rem; }
+    .chat-log {
+      max-height: 18rem; overflow-y: auto; border: 1px solid var(--line);
+      border-radius: 6px; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem;
+      background: var(--bg);
+    }
+    .chat-log p { margin: 0.35rem 0; white-space: pre-wrap; }
+    .chat-assistant { color: #1d4ed8; }
+    .htmx-indicator { display: none; }
+    .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline; }
   </style>
 </head>
 <body>

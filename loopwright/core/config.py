@@ -41,6 +41,7 @@ class Config:
     ntfy_server: str = "https://ntfy.sh"
     ntfy_topic: str | None = None
     openai_api_key_env: str = "OPENAI_API_KEY"
+    openai_model: str = "gpt-4o"
     limit_resume_minutes: int = 30  # auto-resume delay after a usage-limit pause
 
     def __post_init__(self) -> None:

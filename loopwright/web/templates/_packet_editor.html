@@ -1,0 +1,45 @@
+<div id="packet-wrap">
+  <form id="packetform" method="post">
+    {% for filename, field in [("DESIGN.md", "design"), ("DEVPLAN.md", "devplan"), ("TESTPLAN.md", "testplan")] %}
+    <div class="panel">
+      <label for="{{ field }}"><strong>{{ filename }}</strong></label>
+      <textarea id="{{ field }}" name="{{ field }}" rows="14" spellcheck="false">{{ files[filename] }}</textarea>
+    </div>
+    {% endfor %}
+    <div class="panel">
+      <button type="submit" formaction="/projects/{{ project.name }}/packet/save">Save draft</button>
+      <button type="submit" formaction="/projects/{{ project.name }}/packet/approve" class="approve">
+        Approve packet
+      </button>
+      <p class="muted">Approve commits all three files to <code>design/main</code>
+      and marks the run <strong>READY</strong>. Only you can do this — agents never touch the packet.</p>
+    </div>
+  </form>
+
+  <div class="panel">
+    <h2>Primary Agent</h2>
+    {% if not assistant_available %}
+    <p class="muted">Unavailable: set the OpenAI API key in your environment and restart
+    <code>loopwright serve</code>.</p>
+    {% else %}
+    <p class="muted">Describe what you want to build; drafts land in the editors above.
+    Nothing is saved until <em>you</em> save or approve.</p>
+    {% endif %}
+    {% if chat_history %}
+    <div class="chat-log">
+      {% for entry in chat_history %}
+      <p class="chat-{{ entry.role }}"><strong>{{ "You" if entry.role == "user" else "Agent" }}:</strong> {{ entry.content }}</p>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if assistant_error %}<p class="error-text">{{ assistant_error }}</p>{% endif %}
+    <form hx-post="/projects/{{ project.name }}/packet/assistant"
+          hx-include="#packetform"
+          hx-target="#packet-wrap" hx-swap="outerHTML">
+      <input type="text" name="message" required
+             placeholder="e.g. Draft a packet for a small todo-list CLI in Python">
+      <button type="submit">Send</button>
+      <span class="htmx-indicator muted">Thinking…</span>
+    </form>
+  </div>
+</div>

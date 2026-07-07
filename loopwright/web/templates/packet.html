@@ -8,20 +8,5 @@
 {% if saved %}<div class="panel flash">Draft saved. Nothing is committed until you approve.</div>{% endif %}
 {% if error %}<div class="panel error">{{ error }}</div>{% endif %}
 
-<form method="post">
-  {% for filename, field in [("DESIGN.md", "design"), ("DEVPLAN.md", "devplan"), ("TESTPLAN.md", "testplan")] %}
-  <div class="panel">
-    <label for="{{ field }}"><strong>{{ filename }}</strong></label>
-    <textarea id="{{ field }}" name="{{ field }}" rows="14" spellcheck="false">{{ files[filename] }}</textarea>
-  </div>
-  {% endfor %}
-  <div class="panel">
-    <button type="submit" formaction="/projects/{{ project.name }}/packet/save">Save draft</button>
-    <button type="submit" formaction="/projects/{{ project.name }}/packet/approve" class="approve">
-      Approve packet
-    </button>
-    <p class="muted">Approve commits all three files to <code>design/main</code>
-    and marks the run <strong>READY</strong>. Only you can do this — agents never touch the packet.</p>
-  </div>
-</form>
+{% include "_packet_editor.html" %}
 {% endblock %}

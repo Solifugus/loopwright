@@ -17,12 +17,13 @@ from loopwright.notify.ntfy import NullNotifier
 WEB_DIR = Path(__file__).parent
 
 
-def create_app(store: ProjectStore, notifier=None) -> FastAPI:
-    """Build the app around an injected store so tests can use a temp directory."""
+def create_app(store: ProjectStore, notifier=None, assistant=None) -> FastAPI:
+    """Build the app around injected collaborators so tests can use fakes."""
     notifier = notifier if notifier is not None else NullNotifier()
     app = FastAPI(title="Loopwright")
     app.state.store = store
     app.state.notifier = notifier
+    app.state.assistant = assistant
     templates = Jinja2Templates(directory=WEB_DIR / "templates")
     app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
 
@@ -114,16 +115,66 @@ def create_app(store: ProjectStore, notifier=None) -> FastAPI:
         )
         return templates.TemplateResponse(request, "_log_entries.html", {"entries": entries})
 
-    @app.get("/projects/{name}/packet", response_class=HTMLResponse)
-    def packet_editor(request: Request, name: str, saved: int = 0, error: str = ""):
+    def _packet_context(request: Request, name: str, files: dict, **extra):
+        from loopwright.agent import assistant as assistant_mod
+
         project = _load_or_404(name)
         run = store.load_run(name)
+        history = assistant_mod.load_history(service.packet_dir(store, name))
+        context = {
+            "request": request,
+            "project": project,
+            "run": run,
+            "files": files,
+            "chat_history": history,
+            "assistant_available": assistant is not None,
+            "assistant_error": "",
+            "saved": 0,
+            "error": "",
+        }
+        context.update(extra)
+        return context
+
+    @app.get("/projects/{name}/packet", response_class=HTMLResponse)
+    def packet_editor(request: Request, name: str, saved: int = 0, error: str = ""):
         files = service.load_packet(store, name)
-        return templates.TemplateResponse(
-            request,
-            "packet.html",
-            {"project": project, "run": run, "files": files, "saved": saved, "error": error},
-        )
+        context = _packet_context(request, name, files, saved=saved, error=error)
+        return templates.TemplateResponse(request, "packet.html", context)
+
+    @app.post("/projects/{name}/packet/assistant", response_class=HTMLResponse)
+    def packet_assistant(
+        request: Request,
+        name: str,
+        message: str = Form(...),
+        design: str = Form(""),
+        devplan: str = Form(""),
+        testplan: str = Form(""),
+    ):
+        from loopwright.agent import assistant as assistant_mod
+        from loopwright.agent.openai_client import OpenAIError
+
+        _load_or_404(name)
+        buffers = {"DESIGN.md": design, "DEVPLAN.md": devplan, "TESTPLAN.md": testplan}
+        assistant_error = ""
+        if assistant is None:
+            assistant_error = (
+                "Primary Agent is unavailable: set the OpenAI API key environment "
+                "variable and restart the server."
+            )
+        else:
+            packet_directory = service.packet_dir(store, name)
+            history = assistant_mod.load_history(packet_directory)
+            try:
+                reply = assistant.chat(message, buffers, history)
+            except OpenAIError as exc:
+                assistant_error = str(exc)
+            else:
+                buffers.update(reply.files)  # editor buffers only — never disk or git
+                history.append({"role": "user", "content": message})
+                history.append({"role": "assistant", "content": reply.message})
+                assistant_mod.save_history(packet_directory, history)
+        context = _packet_context(request, name, buffers, assistant_error=assistant_error)
+        return templates.TemplateResponse(request, "_packet_editor.html", context)
 
     @app.post("/projects/{name}/packet/save")
     def packet_save(
@@ -161,8 +212,13 @@ def create_app(store: ProjectStore, notifier=None) -> FastAPI:
 
 
 def create_app_from_config() -> FastAPI:
+    from loopwright.agent.assistant import assistant_from_config
     from loopwright.core.config import load_config
     from loopwright.notify.ntfy import from_config
 
     config = load_config()
-    return create_app(ProjectStore(config.projects_dir), notifier=from_config(config))
+    return create_app(
+        ProjectStore(config.projects_dir),
+        notifier=from_config(config),
+        assistant=assistant_from_config(config),
+    )
