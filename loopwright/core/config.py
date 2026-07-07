@@ -25,6 +25,7 @@ class VMConfig:
     domain: str  # libvirt domain name
     host: str  # IP or hostname reachable over SSH
     user: str = "master"
+    snapshot: str | None = None  # clean snapshot to revert to before deployment tests
 
 
 @dataclass

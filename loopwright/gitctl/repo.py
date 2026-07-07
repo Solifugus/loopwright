@@ -109,6 +109,13 @@ class ProjectRepo:
             _run_git(clone, "push", "--quiet", "origin", DESIGN_BRANCH)
             return _run_git(clone, "rev-parse", "HEAD").strip()
 
+    def has_file(self, ref: str, path: str) -> bool:
+        try:
+            _run_git(self.path, "cat-file", "-e", f"{ref}:{path}")
+            return True
+        except GitError:
+            return False
+
     def push_to(self, url: str, refs: list[str]) -> None:
         """Force-push the given branches to another repository (e.g. on a VM)."""
         _run_git(self.path, "push", "--force", "--quiet", url, *refs, remote=True)

@@ -114,7 +114,7 @@ commit.
   *Done when:* dry-run tests cover success, failure, and limit paths; a real one-task run
   against the Developer VM produces a pushed, tagged checkpoint.
 
-- [ ] **6.3 Deployment VM step.** Revert Deployment VM to clean snapshot, clone the
+- [x] **6.3 Deployment VM step.** Revert Deployment VM to clean snapshot, clone the
   candidate, run `scripts/deploy.sh` and `scripts/acceptance.sh` from the project repo,
   capture results into the run log, notify on pass.
   *Done when:* dry-run tests pass; a real run deploys a trivial candidate on the Deployment VM.
@@ -167,7 +167,7 @@ commit.
 | 3 — VM | 2 | 2 |
 | 4 — Notify | 1 | 1 |
 | 5 — Web UI | 4 | 4 |
-| 6 — Orchestrator | 5 | 2 |
+| 6 — Orchestrator | 5 | 3 |
 | 7 — Primary Agent | 1 | 0 |
 | 8 — Finalization | 3 | 0 |
 

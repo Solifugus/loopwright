@@ -51,6 +51,9 @@ def build_parser() -> argparse.ArgumentParser:
     run_dev = run_sub.add_parser("dev", help="run one Developer VM coding session")
     run_dev.add_argument("project")
     run_dev.add_argument("--timeout", type=int, default=3600, help="worker timeout in seconds")
+    run_deploy = run_sub.add_parser("deploy", help="run a Deployment VM test of the candidate")
+    run_deploy.add_argument("project")
+    run_deploy.add_argument("--timeout", type=int, default=1800, help="script timeout in seconds")
 
     serve_parser = subparsers.add_parser("serve", help="run the web UI")
     serve_parser.add_argument("--host", default="127.0.0.1")
@@ -164,17 +167,19 @@ def cmd_project(args) -> int:
     return 0
 
 
-def cmd_run_dev(project: str, timeout: int) -> int:
+def cmd_run_step(kind: str, project: str, timeout: int) -> int:
     from loopwright.core.config import load_config
     from loopwright.core.model import ProjectStore
     from loopwright.notify.ntfy import from_config
+    from loopwright.orchestrator.deploystep import deploy_step_from_config
     from loopwright.orchestrator.devstep import dev_step_from_config
     from loopwright.orchestrator.engine import Engine, EngineError, StepFailed
 
+    factory = dev_step_from_config if kind == "dev" else deploy_step_from_config
     config = load_config()
     store = ProjectStore(config.projects_dir)
     try:
-        step = dev_step_from_config(config, store, project, timeout=timeout)
+        step = factory(config, store, project, timeout=timeout)
         engine = Engine(store, project, [step], notifier=from_config(config))
         outcome = engine.run()
     except FileNotFoundError:
@@ -234,8 +239,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "serve":
         return cmd_serve(args.host, args.port)
-    if args.command == "run" and getattr(args, "run_command", None) == "dev":
-        return cmd_run_dev(args.project, args.timeout)
+    if args.command == "run" and getattr(args, "run_command", None) in ("dev", "deploy"):
+        return cmd_run_step(args.run_command, args.project, args.timeout)
     if args.command == "run":
         parser.parse_args(["run", "--help"])
         return 0
