@@ -31,6 +31,7 @@ class VMConfig:
 @dataclass
 class Config:
     projects_dir: Path = Path("~/.local/share/loopwright/projects")
+    doctrine_dir: Path | None = None  # clone of loopwright-doctrine; None = built-ins
     libvirt_uri: str = "qemu:///system"
     dev_vm: VMConfig = field(
         default_factory=lambda: VMConfig(domain="LoopWright_Dev", host="192.168.122.20")
@@ -46,6 +47,8 @@ class Config:
 
     def __post_init__(self) -> None:
         self.projects_dir = Path(self.projects_dir).expanduser()
+        if self.doctrine_dir is not None:
+            self.doctrine_dir = Path(self.doctrine_dir).expanduser()
 
 
 def _build_vm(section: str, data: object) -> VMConfig:
@@ -92,9 +95,9 @@ def load_config(path: Path | str | None = None) -> Config:
     for key, value in raw.items():
         if key in ("dev_vm", "test_vm"):
             kwargs[key] = _build_vm(key, value)
-        elif key == "projects_dir":
+        elif key in ("projects_dir", "doctrine_dir"):
             if not isinstance(value, str) or not value:
-                raise ConfigError(f"{resolved}: projects_dir must be a non-empty string")
+                raise ConfigError(f"{resolved}: {key} must be a non-empty string")
             kwargs[key] = Path(value)
         elif key == "limit_resume_minutes":
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
@@ -131,6 +134,15 @@ def check_config(config: Config) -> list[tuple[str, str]]:
 
     for label, vm in (("dev_vm", config.dev_vm), ("test_vm", config.test_vm)):
         findings.append(("ok", f"{label}: domain={vm.domain} ssh={vm.user}@{vm.host}"))
+
+    if config.doctrine_dir is None:
+        findings.append(("warn", "doctrine_dir not set: new projects use built-in doctrine"))
+    elif (config.doctrine_dir / "PRINCIPLES.md").is_file():
+        findings.append(("ok", f"doctrine_dir: {config.doctrine_dir}"))
+    else:
+        findings.append(
+            ("error", f"doctrine_dir has no PRINCIPLES.md: {config.doctrine_dir}")
+        )
 
     if config.ntfy_topic:
         findings.append(("ok", f"notifications: {config.ntfy_server}/{config.ntfy_topic}"))

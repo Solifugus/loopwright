@@ -112,6 +112,17 @@ def test_wizard_creates_project_and_redirects_to_editor(store, client):
     assert "demo — Design" in editor.text
 
 
+def test_wizard_prepopulates_from_doctrine(store, notifier, tmp_path):
+    base = tmp_path / "doctrine"
+    (base / "templates").mkdir(parents=True)
+    (base / "templates" / "DESIGN.md").write_text("# {{PROJECT}} via doctrine\n")
+    client = TestClient(create_app(store, notifier=notifier, doctrine_dir=base))
+
+    client.post("/projects", data={"name": "demo"})
+    editor = client.get("/projects/demo/packet")
+    assert "# demo via doctrine" in editor.text
+
+
 def test_wizard_rejects_duplicate_name(store, client):
     service.create_project(store, "demo")
     response = client.post("/projects", data={"name": "demo"})

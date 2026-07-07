@@ -17,7 +17,7 @@ from loopwright.notify.ntfy import NullNotifier
 WEB_DIR = Path(__file__).parent
 
 
-def create_app(store: ProjectStore, notifier=None, assistant=None) -> FastAPI:
+def create_app(store: ProjectStore, notifier=None, assistant=None, doctrine_dir=None) -> FastAPI:
     """Build the app around injected collaborators so tests can use fakes."""
     notifier = notifier if notifier is not None else NullNotifier()
     app = FastAPI(title="Loopwright")
@@ -41,7 +41,7 @@ def create_app(store: ProjectStore, notifier=None, assistant=None) -> FastAPI:
     @app.post("/projects", response_class=HTMLResponse)
     def create_project(request: Request, name: str = Form(...)):
         try:
-            service.create_project(store, name.strip())
+            service.create_project(store, name.strip(), doctrine_dir=doctrine_dir)
         except (ValueError, FileExistsError, GitError) as exc:
             return templates.TemplateResponse(
                 request, "new_project.html", {"error": str(exc)}, status_code=400
@@ -221,4 +221,5 @@ def create_app_from_config() -> FastAPI:
         ProjectStore(config.projects_dir),
         notifier=from_config(config),
         assistant=assistant_from_config(config),
+        doctrine_dir=config.doctrine_dir,
     )

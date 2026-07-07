@@ -21,6 +21,35 @@ from loopwright.gitctl.repo import WORK_BRANCH, GitError, ProjectRepo
 from loopwright.notify.ntfy import Event
 
 PACKET_FILES = ("DESIGN.md", "DEVPLAN.md", "TESTPLAN.md")
+DOCTRINE_FILES = ("PRINCIPLES.md", "AGENT_RULES.md")
+PROJECT_PLACEHOLDER = "{{PROJECT}}"
+
+# Minimal built-in doctrine used when no doctrine_dir is configured. The
+# canonical, fuller versions live in the loopwright-doctrine repo.
+DEFAULT_DOCTRINE = {
+    "PRINCIPLES.md": (
+        "# Engineering Principles\n\n"
+        "1. Prefer simplicity and boring dependencies.\n"
+        "2. Be explicit; minimize magic.\n"
+        "3. Automate everything repeatable.\n"
+        "4. Make failures visible.\n"
+        "5. Document reality, not aspiration.\n"
+        "6. Favor reversibility.\n"
+        "7. Deployment must be reproducible from a clean machine via\n"
+        "   scripts/deploy.sh, proven by scripts/acceptance.sh.\n"
+        "8. Tests accompany logic; the suite passes before every commit.\n"
+    ),
+    "AGENT_RULES.md": (
+        "# Agent Rules\n\n"
+        "- Work only on agent/work; one DEVPLAN task per session; tests must\n"
+        "  pass; tick the checkbox and push, or the work doesn't exist.\n"
+        "- Never modify DESIGN.md, PRINCIPLES.md, or AGENT_RULES.md.\n"
+        "- Never: deploy to production, spend money, touch real accounts or\n"
+        "  secrets, modify files outside the working copy, contact external\n"
+        "  people or services, or accept legal terms.\n"
+        "- If a task seems to require breaking a rule, stop and report.\n"
+    ),
+}
 
 # Human-initiated run controls. Each maps to a target state; extra guards below
 # keep "start" and "resume" meaning what they say even though both target RUNNING.
@@ -73,17 +102,47 @@ def packet_dir(store: ProjectStore, name: str) -> Path:
     return store.project_dir(name) / "packet"
 
 
-def create_project(store: ProjectStore, name: str) -> Project:
-    """Create the store entry, packet drafts, and the bare git repository."""
+def load_packet_templates(name: str, doctrine_dir: Path | None = None) -> dict[str, str]:
+    """Doctrine templates with {{PROJECT}} substituted; built-ins fill any gaps."""
+    files = default_packet(name)
+    if doctrine_dir is not None:
+        template_dir = Path(doctrine_dir).expanduser() / "templates"
+        for filename in PACKET_FILES:
+            path = template_dir / filename
+            if path.is_file():
+                files[filename] = path.read_text().replace(PROJECT_PLACEHOLDER, name)
+    return files
+
+
+def load_doctrine_files(doctrine_dir: Path | None = None) -> dict[str, str]:
+    files = dict(DEFAULT_DOCTRINE)
+    if doctrine_dir is not None:
+        base = Path(doctrine_dir).expanduser()
+        for filename in DOCTRINE_FILES:
+            path = base / filename
+            if path.is_file():
+                files[filename] = path.read_text()
+    return files
+
+
+def create_project(
+    store: ProjectStore, name: str, doctrine_dir: Path | None = None
+) -> Project:
+    """Create the store entry, packet drafts, and the bare git repository.
+
+    The initial design/main commit carries the doctrine (PRINCIPLES.md,
+    AGENT_RULES.md) alongside the packet, so every worker clone includes the
+    rules it must follow.
+    """
     repo_path = store.project_dir(name) / "repo.git"
     project = store.create(name, str(repo_path))
     try:
-        files = default_packet(name)
+        packet_files = load_packet_templates(name, doctrine_dir)
         pdir = packet_dir(store, name)
         pdir.mkdir()
-        for filename, content in files.items():
+        for filename, content in packet_files.items():
             (pdir / filename).write_text(content)
-        ProjectRepo.init(repo_path, files)
+        ProjectRepo.init(repo_path, {**load_doctrine_files(doctrine_dir), **packet_files})
     except Exception:
         shutil.rmtree(store.project_dir(name), ignore_errors=True)
         raise

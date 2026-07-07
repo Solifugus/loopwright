@@ -139,7 +139,7 @@ commit.
 
 ## Phase 8 — Finalization
 
-- [ ] **8.1 Doctrine repo and templates.** Create the `loopwright-doctrine` repo
+- [x] **8.1 Doctrine repo and templates.** Create the `loopwright-doctrine` repo
   (PRINCIPLES.md, AGENT_RULES.md, DESIGN/DEVPLAN/TESTPLAN templates); wizard copies
   doctrine + templates into new project repos.
   *Done when:* a new project starts pre-populated from doctrine.
@@ -169,6 +169,6 @@ commit.
 | 5 — Web UI | 4 | 4 |
 | 6 — Orchestrator | 5 | 5 |
 | 7 — Primary Agent | 1 | 1 |
-| 8 — Finalization | 3 | 0 |
+| 8 — Finalization | 3 | 1 |
 
 Update checkboxes and this table in the same commit as the work.

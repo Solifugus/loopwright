@@ -4,6 +4,10 @@
 
 projects_dir: ~/development/loopwright/projects
 
+# Clone of github.com/Solifugus/loopwright-doctrine; new projects are
+# pre-populated from its templates and carry its PRINCIPLES.md/AGENT_RULES.md.
+doctrine_dir: ~/development/loopwright-doctrine
+
 libvirt_uri: qemu:///system
 
 dev_vm:

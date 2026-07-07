@@ -175,6 +175,54 @@ def test_list_checkpoints_returns_tags(store):
     ]
 
 
+# --- doctrine and templates (task 8.1) ---
+
+
+@pytest.fixture
+def doctrine(tmp_path):
+    base = tmp_path / "doctrine"
+    (base / "templates").mkdir(parents=True)
+    (base / "PRINCIPLES.md").write_text("# Real Principles\n")
+    (base / "AGENT_RULES.md").write_text("# Real Rules\n")
+    (base / "templates" / "DESIGN.md").write_text("# {{PROJECT}} design from doctrine\n")
+    (base / "templates" / "DEVPLAN.md").write_text("# {{PROJECT}} plan\n\n- [ ] 1. start\n")
+    (base / "templates" / "TESTPLAN.md").write_text("# {{PROJECT}} tests\n")
+    return base
+
+
+def test_create_project_uses_doctrine_templates(store, doctrine):
+    project = service.create_project(store, "demo", doctrine_dir=doctrine)
+    drafts = service.load_packet(store, "demo")
+    assert drafts["DESIGN.md"] == "# demo design from doctrine\n"  # placeholder substituted
+    assert "- [ ] 1. start" in drafts["DEVPLAN.md"]
+
+    repo = ProjectRepo(project.repo_path)
+    assert repo_file(project.repo_path, "design/main", "PRINCIPLES.md") == "# Real Principles\n"
+    assert repo_file(project.repo_path, "design/main", "AGENT_RULES.md") == "# Real Rules\n"
+    assert repo.has_file("agent/work", "AGENT_RULES.md")  # doctrine reaches worker clones
+
+
+def test_create_project_without_doctrine_uses_builtins(store):
+    project = service.create_project(store, "demo")
+    principles = repo_file(project.repo_path, "design/main", "PRINCIPLES.md")
+    assert "boring dependencies" in principles
+    rules = repo_file(project.repo_path, "design/main", "AGENT_RULES.md")
+    assert "Never" in rules
+
+
+def test_partial_doctrine_falls_back_per_file(store, tmp_path):
+    base = tmp_path / "doctrine"
+    (base / "templates").mkdir(parents=True)
+    (base / "templates" / "DESIGN.md").write_text("# {{PROJECT}} custom design\n")
+    # no PRINCIPLES/AGENT_RULES, no other templates
+
+    project = service.create_project(store, "demo", doctrine_dir=base)
+    drafts = service.load_packet(store, "demo")
+    assert drafts["DESIGN.md"] == "# demo custom design\n"
+    assert "Development Plan" in drafts["DEVPLAN.md"]  # built-in fallback
+    assert "boring dependencies" in repo_file(project.repo_path, "design/main", "PRINCIPLES.md")
+
+
 # --- rollback to checkpoint (task 6.5) ---
 
 

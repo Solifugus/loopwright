@@ -166,7 +166,7 @@ def cmd_project(args) -> int:
 
     if args.project_command == "create":
         try:
-            service.create_project(store, args.name)
+            service.create_project(store, args.name, doctrine_dir=config.doctrine_dir)
         except (ValueError, FileExistsError, GitError) as exc:
             print(f"error: {exc}")
             return 1
