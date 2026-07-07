@@ -64,6 +64,9 @@ def create_app(store: ProjectStore, notifier=None, assistant=None, doctrine_dir=
             "actions": service.available_actions(run),
             "checkpoints": service.list_checkpoints(store, name),
             "can_rollback": run.state in service.ROLLBACK_STATES,
+            "release_pending": (
+                run.state.value == "REVIEW" and service.release_status(store, name)["pending"]
+            ),
             "error": error,
         }
 
@@ -84,6 +87,32 @@ def create_app(store: ProjectStore, notifier=None, assistant=None, doctrine_dir=
         try:
             service.control_run(store, name, action, notifier=notifier)
         except (ValueError, IllegalTransition) as exc:
+            error = str(exc)
+        context = _dashboard_context(request, name, error=error)
+        return templates.TemplateResponse(request, "_dashboard.html", context)
+
+    @app.get("/projects/{name}/report", response_class=HTMLResponse)
+    def final_report(request: Request, name: str):
+        from loopwright.gitctl.repo import ProjectRepo
+
+        project = _load_or_404(name)
+        try:
+            report = ProjectRepo(project.repo_path).show("release/candidate", "FINAL_REPORT.md")
+        except GitError as exc:
+            raise HTTPException(
+                status_code=404, detail="no final report yet for this project"
+            ) from exc
+        return templates.TemplateResponse(
+            request, "report.html", {"project": project, "report": report}
+        )
+
+    @app.post("/projects/{name}/release/approve", response_class=HTMLResponse)
+    def approve_release(request: Request, name: str):
+        _load_or_404(name)
+        error = ""
+        try:
+            service.approve_release(store, name)
+        except (ValueError, GitError) as exc:
             error = str(exc)
         context = _dashboard_context(request, name, error=error)
         return templates.TemplateResponse(request, "_dashboard.html", context)

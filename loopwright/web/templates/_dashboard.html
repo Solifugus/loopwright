@@ -17,6 +17,22 @@
     {% if error %}<p class="error-text">{{ error }}</p>{% endif %}
   </div>
 
+  {% if release_pending %}
+  <div class="panel flash">
+    <strong>Release candidate ready.</strong>
+    Review the final report, then approve to fast-forward <code>main</code>.
+    <p>
+      <a class="button" href="/projects/{{ project.name }}/report">View final report</a>
+      <button class="ctl approve"
+              hx-post="/projects/{{ project.name }}/release/approve"
+              hx-target="#dashboard" hx-swap="outerHTML"
+              hx-confirm="Approve the release? main will be fast-forwarded to release/candidate.">
+        Approve release
+      </button>
+    </p>
+  </div>
+  {% endif %}
+
   {% if run.steps %}
   <h2>Steps</h2>
   <table>

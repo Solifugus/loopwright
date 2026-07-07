@@ -84,11 +84,11 @@ class ProjectRepo:
                 _run_git(path, "branch", branch, DESIGN_BRANCH)
         return repo
 
-    def commit_packet(self, files: dict[str, str], message: str = "Update design packet") -> str:
-        """Commit files onto design/main via a throwaway clone; returns the commit hash."""
+    def commit_files(self, files: dict[str, str], branch: str, message: str) -> str:
+        """Commit files onto a branch via a throwaway clone; returns the commit hash."""
         if not files:
             raise ValueError("no files to commit")
-        with tempfile.TemporaryDirectory(prefix="loopwright-packet-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="loopwright-commit-") as tmp:
             clone = Path(tmp) / "clone"
             result = subprocess.run(
                 ["git", "clone", "--quiet", str(self.path), str(clone)],
@@ -97,7 +97,10 @@ class ProjectRepo:
             )
             if result.returncode != 0:
                 raise GitError(f"git clone failed: {result.stderr.strip()}")
-            _run_git(clone, "checkout", "-B", DESIGN_BRANCH)
+            try:
+                _run_git(clone, "checkout", "-q", "-B", branch, f"origin/{branch}")
+            except GitError:
+                _run_git(clone, "checkout", "-q", "-B", branch)
             for rel_path, content in files.items():
                 target = (clone / rel_path).resolve()
                 if not target.is_relative_to(clone.resolve()):
@@ -106,8 +109,16 @@ class ProjectRepo:
                 target.write_text(content)
             _run_git(clone, "add", "-A")
             _run_git(clone, "commit", "--allow-empty", "-m", message)
-            _run_git(clone, "push", "--quiet", "origin", DESIGN_BRANCH)
+            _run_git(clone, "push", "--quiet", "origin", branch)
             return _run_git(clone, "rev-parse", "HEAD").strip()
+
+    def commit_packet(self, files: dict[str, str], message: str = "Update design packet") -> str:
+        """Commit files onto design/main via a throwaway clone; returns the commit hash."""
+        return self.commit_files(files, DESIGN_BRANCH, message)
+
+    def show(self, ref: str, path: str) -> str:
+        """Return a file's content at a ref; raises GitError if absent."""
+        return _run_git(self.path, "show", f"{ref}:{path}")
 
     def reset_branch(self, branch: str, ref: str) -> None:
         """Force a branch to point at ref (used for rollback-to-checkpoint)."""

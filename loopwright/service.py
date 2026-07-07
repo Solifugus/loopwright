@@ -225,6 +225,55 @@ def rollback_to_checkpoint(store: ProjectStore, name: str, tag: str) -> str:
     return head
 
 
+def promote_candidate(store: ProjectStore, name: str) -> str:
+    """Point release/candidate at agent/work and commit FINAL_REPORT.md onto it."""
+    from loopwright.orchestrator.report import generate_report
+
+    project = store.load_project(name)
+    run = store.load_run(name)
+    if run.state is not RunState.REVIEW:
+        raise ValueError(f"cannot promote a candidate while the run is {run.state.value}")
+    repo = ProjectRepo(project.repo_path)
+    repo.reset_branch("release/candidate", WORK_BRANCH)
+    report = generate_report(store, name)
+    commit = repo.commit_files(
+        {"FINAL_REPORT.md": report}, branch="release/candidate", message="Final report"
+    )
+    run_log(store, name).log(
+        "release", f"candidate promoted with final report ({commit[:10]})"
+    )
+    return report
+
+
+def release_status(store: ProjectStore, name: str) -> dict:
+    """Whether a release candidate is awaiting human approval."""
+    project = store.load_project(name)
+    try:
+        repo = ProjectRepo(project.repo_path)
+        candidate = repo.head_of("release/candidate")
+        main = repo.head_of("main")
+    except GitError:
+        return {"pending": False}
+    return {"pending": candidate != main, "candidate": candidate, "main": main}
+
+
+def approve_release(store: ProjectStore, name: str) -> str:
+    """Human approval: fast-forward main to release/candidate, run → DONE."""
+    project = store.load_project(name)
+    run = store.load_run(name)
+    if run.state is not RunState.REVIEW:
+        raise ValueError(f"cannot approve a release while the run is {run.state.value}")
+    if not release_status(store, name)["pending"]:
+        raise ValueError("no release candidate is awaiting approval")
+    repo = ProjectRepo(project.repo_path)
+    repo.reset_branch("main", "release/candidate")
+    run.transition(RunState.DONE)
+    store.save_run(name, run)
+    head = repo.head_of("main")
+    run_log(store, name).log("release", f"release approved; main is now {head[:10]}")
+    return head
+
+
 def run_log(store: ProjectStore, name: str) -> RunLog:
     return RunLog(store.project_dir(name) / "logs")
 

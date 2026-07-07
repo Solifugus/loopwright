@@ -144,7 +144,7 @@ commit.
   doctrine + templates into new project repos.
   *Done when:* a new project starts pre-populated from doctrine.
 
-- [ ] **8.2 Final report.** Generate FINAL_REPORT.md at run completion: checkpoints,
+- [x] **8.2 Final report.** Generate FINAL_REPORT.md at run completion: checkpoints,
   test/deploy results, notable decisions, deviations from DEVPLAN. Move candidate to
   `release/candidate` and request human approval (notification + UI action) to merge `main`.
   *Done when:* a completed dry-run produces a coherent report and an approval flow.
@@ -169,6 +169,6 @@ commit.
 | 5 — Web UI | 4 | 4 |
 | 6 — Orchestrator | 5 | 5 |
 | 7 — Primary Agent | 1 | 1 |
-| 8 — Finalization | 3 | 1 |
+| 8 — Finalization | 3 | 2 |
 
 Update checkboxes and this table in the same commit as the work.

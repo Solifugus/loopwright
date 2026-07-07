@@ -156,8 +156,19 @@ def run_loop(
             _new_cycle(store, project)
             continue
         if decision.action is Action.FINISH:
+            try:
+                from loopwright import service
+                from loopwright.gitctl.repo import GitError
+
+                service.promote_candidate(store, project)
+            except (GitError, ValueError, FileNotFoundError) as exc:
+                log.log("release", f"could not promote candidate: {exc}", level="warning")
             if notifier is not None:
-                notifier.notify(Event.CANDIDATE_READY, decision.reason, project=project)
+                notifier.notify(
+                    Event.CANDIDATE_READY,
+                    f"{decision.reason} — review FINAL_REPORT and approve the release",
+                    project=project,
+                )
             return FINISHED
         # Action.PAUSE — leave the run in REVIEW for the human
         if notifier is not None:

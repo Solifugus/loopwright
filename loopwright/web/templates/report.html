@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} final report — Loopwright{% endblock %}
+{% block content %}
+<h1><a href="/projects/{{ project.name }}">{{ project.name }}</a> — final report</h1>
+<div class="panel">
+  <pre class="report">{{ report }}</pre>
+</div>
+{% endblock %}
