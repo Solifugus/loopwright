@@ -149,7 +149,7 @@ commit.
   `release/candidate` and request human approval (notification + UI action) to merge `main`.
   *Done when:* a completed dry-run produces a coherent report and an approval flow.
 
-- [ ] **8.3 End-to-end MVP validation.** Run a real toy project (e.g. a tiny CLI or HTTP
+- [x] **8.3 End-to-end MVP validation.** Run a real toy project (e.g. a tiny CLI or HTTP
   service with a deploy script) through the entire loop on real VMs: packet → approval →
   coding → checkpoint → deployment test → review → final report → human approval.
   Fix whatever breaks; record gaps in a new plan for v0.2.
@@ -169,6 +169,6 @@ commit.
 | 5 — Web UI | 4 | 4 |
 | 6 — Orchestrator | 5 | 5 |
 | 7 — Primary Agent | 1 | 1 |
-| 8 — Finalization | 3 | 2 |
+| 8 — Finalization | 3 | 3 |
 
 Update checkboxes and this table in the same commit as the work.
