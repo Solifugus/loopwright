@@ -24,3 +24,6 @@ ntfy_topic: loopwright-solifugus
 
 # Name of the environment variable holding the OpenAI API key for the Primary Agent.
 openai_api_key_env: OPENAI_API_KEY
+
+# Minutes to wait before auto-resuming a run parked by an AI usage limit.
+limit_resume_minutes: 30

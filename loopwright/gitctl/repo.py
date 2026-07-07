@@ -109,6 +109,10 @@ class ProjectRepo:
             _run_git(clone, "push", "--quiet", "origin", DESIGN_BRANCH)
             return _run_git(clone, "rev-parse", "HEAD").strip()
 
+    def reset_branch(self, branch: str, ref: str) -> None:
+        """Force a branch to point at ref (used for rollback-to-checkpoint)."""
+        _run_git(self.path, "branch", "-f", branch, ref)
+
     def has_file(self, ref: str, path: str) -> bool:
         try:
             _run_git(self.path, "cat-file", "-e", f"{ref}:{path}")

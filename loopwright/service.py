@@ -17,7 +17,7 @@ from loopwright.core.model import (
     RunState,
 )
 from loopwright.core.runlog import RunLog
-from loopwright.gitctl.repo import GitError, ProjectRepo
+from loopwright.gitctl.repo import WORK_BRANCH, GitError, ProjectRepo
 from loopwright.notify.ntfy import Event
 
 PACKET_FILES = ("DESIGN.md", "DEVPLAN.md", "TESTPLAN.md")
@@ -141,6 +141,29 @@ def control_run(store: ProjectStore, name: str, action: str, notifier=None) -> R
     if action == "start" and notifier is not None:
         notifier.notify(Event.RUN_STARTED, f"Run started for {name}", project=name)
     return run
+
+
+# States in which agent/work may be rewound: never while agents are working.
+ROLLBACK_STATES = frozenset(
+    {RunState.READY, RunState.REVIEW, RunState.PAUSED, RunState.PAUSED_LIMIT}
+)
+
+
+def rollback_to_checkpoint(store: ProjectStore, name: str, tag: str) -> str:
+    """Rewind agent/work to a checkpoint tag; clears recorded step results."""
+    project = store.load_project(name)
+    run = store.load_run(name)
+    if run.state not in ROLLBACK_STATES:
+        raise ValueError(f"cannot roll back while the run is {run.state.value}")
+    repo = ProjectRepo(project.repo_path)
+    if tag not in repo.checkpoints():
+        raise ValueError(f"unknown checkpoint {tag!r}")
+    repo.reset_branch(WORK_BRANCH, tag)
+    run.steps = []
+    store.save_run(name, run)
+    head = repo.head_of(WORK_BRANCH)
+    run_log(store, name).log("rollback", f"agent/work rewound to {tag} ({head[:10]})")
+    return head
 
 
 def run_log(store: ProjectStore, name: str) -> RunLog:

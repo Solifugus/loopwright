@@ -173,3 +173,49 @@ def test_list_checkpoints_returns_tags(store):
         "checkpoint/0001-first",
         "checkpoint/0002-second",
     ]
+
+
+# --- rollback to checkpoint (task 6.5) ---
+
+
+def rollback_env(store):
+    """Project in READY with a checkpoint, then agent/work advanced past it."""
+    project = service.create_project(store, "demo")
+    run = store.load_run("demo")
+    run.transition(RunState.READY)
+    run.record_step("dev-code", "ok", "t", {"checkpoint": "x"})
+    store.save_run("demo", run)
+    repo = ProjectRepo(project.repo_path)
+    tag = repo.tag_checkpoint("good-state")  # at current agent/work
+    old_head = repo.head_of("agent/work")
+    repo.commit_packet({"DESIGN.md": "# moved on\n"}, message="advance design/main")
+    repo.reset_branch("agent/work", "design/main")  # simulate later worker commits
+    assert repo.head_of("agent/work") != old_head
+    return repo, tag, old_head
+
+
+def test_rollback_rewinds_agent_work_and_clears_steps(store):
+    repo, tag, old_head = rollback_env(store)
+    head = service.rollback_to_checkpoint(store, "demo", tag)
+    assert head == old_head
+    assert repo.head_of("agent/work") == old_head
+    run = store.load_run("demo")
+    assert run.steps == []
+    assert run.state is RunState.READY  # state untouched
+    log_entries = service.run_log(store, "demo").read(step="rollback")
+    assert any(tag in e["message"] for e in log_entries)
+
+
+def test_rollback_refused_while_running(store):
+    repo, tag, _ = rollback_env(store)
+    run = store.load_run("demo")
+    run.transition(RunState.RUNNING)
+    store.save_run("demo", run)
+    with pytest.raises(ValueError, match="cannot roll back while the run is RUNNING"):
+        service.rollback_to_checkpoint(store, "demo", tag)
+
+
+def test_rollback_unknown_tag(store):
+    rollback_env(store)
+    with pytest.raises(ValueError, match="unknown checkpoint"):
+        service.rollback_to_checkpoint(store, "demo", "checkpoint/9999-nope")

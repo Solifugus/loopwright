@@ -41,6 +41,7 @@ class Config:
     ntfy_server: str = "https://ntfy.sh"
     ntfy_topic: str | None = None
     openai_api_key_env: str = "OPENAI_API_KEY"
+    limit_resume_minutes: int = 30  # auto-resume delay after a usage-limit pause
 
     def __post_init__(self) -> None:
         self.projects_dir = Path(self.projects_dir).expanduser()
@@ -94,6 +95,12 @@ def load_config(path: Path | str | None = None) -> Config:
             if not isinstance(value, str) or not value:
                 raise ConfigError(f"{resolved}: projects_dir must be a non-empty string")
             kwargs[key] = Path(value)
+        elif key == "limit_resume_minutes":
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ConfigError(
+                    f"{resolved}: limit_resume_minutes must be a non-negative integer"
+                )
+            kwargs[key] = value
         elif key == "ntfy_topic":
             if value is not None and (not isinstance(value, str) or not value):
                 raise ConfigError(f"{resolved}: ntfy_topic must be a non-empty string or null")

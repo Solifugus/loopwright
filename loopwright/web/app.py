@@ -62,6 +62,7 @@ def create_app(store: ProjectStore, notifier=None) -> FastAPI:
             "run": run,
             "actions": service.available_actions(run),
             "checkpoints": service.list_checkpoints(store, name),
+            "can_rollback": run.state in service.ROLLBACK_STATES,
             "error": error,
         }
 
@@ -82,6 +83,17 @@ def create_app(store: ProjectStore, notifier=None) -> FastAPI:
         try:
             service.control_run(store, name, action, notifier=notifier)
         except (ValueError, IllegalTransition) as exc:
+            error = str(exc)
+        context = _dashboard_context(request, name, error=error)
+        return templates.TemplateResponse(request, "_dashboard.html", context)
+
+    @app.post("/projects/{name}/rollback", response_class=HTMLResponse)
+    def rollback(request: Request, name: str, tag: str = Form(...)):
+        _load_or_404(name)
+        error = ""
+        try:
+            service.rollback_to_checkpoint(store, name, tag)
+        except (ValueError, GitError) as exc:
             error = str(exc)
         context = _dashboard_context(request, name, error=error)
         return templates.TemplateResponse(request, "_dashboard.html", context)

@@ -191,13 +191,22 @@ def test_loop_pauses_after_retries_exhausted(store):
     assert Event.REPEATED_FAILURE in events
 
 
-def test_loop_returns_parked_on_usage_limit(store):
+def test_loop_usage_limit_then_human_stop(store):
     def limited(ctx):
         raise UsageLimitReached("out of tokens")
 
-    outcome = run_loop(store, "demo", [dev_like(limited), deploy_like()])
-    assert outcome == "paused-limit"
-    assert store.load_run("demo").state is RunState.PAUSED_LIMIT
+    def human_stops(seconds):
+        run = store.load_run("demo")
+        if run.state is RunState.PAUSED_LIMIT:
+            run.transition(RunState.STOPPED)
+            store.save_run("demo", run)
+
+    outcome = run_loop(
+        store, "demo", [dev_like(limited), deploy_like()],
+        limit_resume_delay=9999, sleep=human_stops,
+    )
+    assert outcome == "stopped"
+    assert store.load_run("demo").state is RunState.STOPPED
 
 
 def test_loop_stops_at_max_cycles(store):
@@ -221,5 +230,114 @@ def test_loop_respects_ui_stop(store):
         return {"tasks_remaining": True}
 
     outcome = run_loop(store, "demo", [dev_like(dev_then_stop), deploy_like()])
-    assert outcome == "interrupted"
+    assert outcome == "stopped"
     assert store.load_run("demo").state is RunState.STOPPED
+
+
+# --- pause/resume hardening (task 6.5) ---
+
+
+def test_pause_mid_run_then_human_resume(store):
+    """UI pause during a step halts the loop; Resume picks up where it left off."""
+    calls = []
+
+    def dev_and_pause(ctx):
+        calls.append("dev")
+        run = ctx.store.load_run(ctx.project)
+        run.transition(RunState.PAUSED)  # human clicked Pause while dev ran
+        ctx.store.save_run(ctx.project, run)
+        return {"tasks_remaining": False}
+
+    def human_resumes(seconds):
+        run = store.load_run("demo")
+        if run.state is RunState.PAUSED:
+            run.transition(RunState.RUNNING)
+            store.save_run("demo", run)
+
+    def deploy(ctx):
+        calls.append("deploy")
+        return {}
+
+    outcome = run_loop(
+        store, "demo", [dev_like(dev_and_pause), deploy_like(deploy)], sleep=human_resumes
+    )
+    assert outcome == FINISHED
+    assert calls == ["dev", "deploy"]  # dev not re-run after resume
+
+
+def test_pause_then_human_stop(store):
+    def dev_and_pause(ctx):
+        run = ctx.store.load_run(ctx.project)
+        run.transition(RunState.PAUSED)
+        ctx.store.save_run(ctx.project, run)
+        return {"tasks_remaining": False}
+
+    def human_stops(seconds):
+        run = store.load_run("demo")
+        if run.state is RunState.PAUSED:
+            run.transition(RunState.STOPPED)
+            store.save_run("demo", run)
+
+    outcome = run_loop(store, "demo", [dev_like(dev_and_pause), deploy_like()], sleep=human_stops)
+    assert outcome == "stopped"
+
+
+def test_usage_limit_auto_resumes_after_delay(store):
+    sleeps = []
+    attempts = {"n": 0}
+
+    def limited_once(ctx):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise UsageLimitReached("out of tokens")
+        return {"tasks_remaining": False}
+
+    outcome = run_loop(
+        store, "demo",
+        [dev_like(limited_once), deploy_like()],
+        poll_interval=1.0,
+        limit_resume_delay=3.0,
+        sleep=sleeps.append,
+    )
+    assert outcome == FINISHED
+    assert attempts["n"] == 2  # limit-parked step re-ran after auto-resume
+    assert len(sleeps) >= 3  # waited out the delay in poll_interval slices
+    assert store.load_run("demo").state is RunState.REVIEW
+
+
+def test_loop_restarts_from_review(store):
+    run = store.load_run("demo")
+    run.transition(RunState.RUNNING)
+    run.record_step("dev-code", "ok", "t", {"tasks_remaining": True})
+    run.transition(RunState.REVIEW)
+    store.save_run("demo", run)
+
+    outcome = run_loop(
+        store, "demo",
+        [dev_like(lambda ctx: {"tasks_remaining": False}), deploy_like()],
+    )
+    assert outcome == FINISHED
+    run = store.load_run("demo")
+    assert run.cycle == 1  # restart began a fresh cycle
+
+
+def test_loop_resumes_from_paused_entry(store):
+    run = store.load_run("demo")
+    run.transition(RunState.RUNNING)
+    run.transition(RunState.PAUSED)
+    store.save_run("demo", run)
+
+    outcome = run_loop(
+        store, "demo",
+        [dev_like(lambda ctx: {"tasks_remaining": False}), deploy_like()],
+    )
+    assert outcome == FINISHED
+
+
+def test_loop_rejects_bad_entry_states(store, tmp_path):
+    from loopwright.orchestrator.engine import EngineError
+
+    fresh = ProjectStore(tmp_path / "p2")
+    fresh.create("demo", "/nowhere/repo.git")  # still DRAFT
+    with pytest.raises(EngineError, match="cannot start the loop from state DRAFT"):
+        run_loop(fresh, "demo", [dev_like(lambda ctx: {}), deploy_like()])

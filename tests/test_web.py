@@ -249,6 +249,54 @@ def test_dashboard_lists_checkpoints(store, client):
     assert "checkpoint/0001-hello-world" in response.text
 
 
+# --- rollback from the UI (task 6.5) ---
+
+
+def rollback_ready(store):
+    service.create_project(store, "demo")
+    repo = ProjectRepo(store.project_dir("demo") / "repo.git")
+    tag = repo.tag_checkpoint("good")
+    old_head = repo.head_of("agent/work")
+    repo.commit_packet({"DESIGN.md": "# v2\n"}, message="advance")
+    repo.reset_branch("agent/work", "design/main")
+    run = store.load_run("demo")
+    run.transition(RunState.READY)
+    store.save_run("demo", run)
+    return repo, tag, old_head
+
+
+def test_rollback_button_shown_when_safe(store, client):
+    rollback_ready(store)
+    response = client.get("/projects/demo/dashboard")
+    assert "Roll back here" in response.text
+
+
+def test_rollback_button_hidden_while_running(store, client):
+    rollback_ready(store)
+    run = store.load_run("demo")
+    run.transition(RunState.RUNNING)
+    store.save_run("demo", run)
+    response = client.get("/projects/demo/dashboard")
+    assert "Roll back here" not in response.text
+
+
+def test_rollback_post_rewinds_and_refreshes_dashboard(store, client):
+    repo, tag, old_head = rollback_ready(store)
+    response = client.post("/projects/demo/rollback", data={"tag": tag})
+    assert response.status_code == 200
+    assert repo.head_of("agent/work") == old_head
+
+
+def test_rollback_post_while_running_shows_error(store, client):
+    repo, tag, old_head = rollback_ready(store)
+    run = store.load_run("demo")
+    run.transition(RunState.RUNNING)
+    store.save_run("demo", run)
+    response = client.post("/projects/demo/rollback", data={"tag": tag})
+    assert "cannot roll back" in response.text
+    assert repo.head_of("agent/work") != old_head  # branch untouched
+
+
 # --- log viewer (task 5.4) ---
 
 

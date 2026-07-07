@@ -60,6 +60,12 @@ def build_parser() -> argparse.ArgumentParser:
     run_loop_parser.add_argument("--max-cycles", type=int, default=25)
     run_loop_parser.add_argument("--dev-timeout", type=int, default=3600)
     run_loop_parser.add_argument("--deploy-timeout", type=int, default=1800)
+    run_loop_parser.add_argument(
+        "--limit-resume-minutes",
+        type=int,
+        default=None,
+        help="minutes before auto-resuming a usage-limit pause (default: from config)",
+    )
 
     serve_parser = subparsers.add_parser("serve", help="run the web UI")
     serve_parser.add_argument("--host", default="127.0.0.1")
@@ -219,6 +225,11 @@ def cmd_run_loop(args) -> int:
             dev_step_from_config(config, store, args.project, timeout=args.dev_timeout),
             deploy_step_from_config(config, store, args.project, timeout=args.deploy_timeout),
         ]
+        resume_minutes = (
+            args.limit_resume_minutes
+            if args.limit_resume_minutes is not None
+            else config.limit_resume_minutes
+        )
         outcome = run_loop(
             store,
             args.project,
@@ -226,6 +237,7 @@ def cmd_run_loop(args) -> int:
             notifier=from_config(config),
             retry_limit=args.retry_limit,
             max_cycles=args.max_cycles,
+            limit_resume_delay=resume_minutes * 60,
         )
     except FileNotFoundError:
         print(f"error: no project named {args.project!r}")

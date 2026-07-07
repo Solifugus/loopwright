@@ -34,8 +34,23 @@
   <h2>Checkpoints</h2>
   {% if checkpoints %}
   <table>
-    <tr><th>Tag</th></tr>
-    {% for tag in checkpoints %}<tr><td><code>{{ tag }}</code></td></tr>{% endfor %}
+    <tr><th>Tag</th>{% if can_rollback %}<th></th>{% endif %}</tr>
+    {% for tag in checkpoints %}
+    <tr>
+      <td><code>{{ tag }}</code></td>
+      {% if can_rollback %}
+      <td>
+        <button class="ctl ctl-rollback"
+                hx-post="/projects/{{ project.name }}/rollback"
+                hx-vals='{"tag": "{{ tag }}"}'
+                hx-target="#dashboard" hx-swap="outerHTML"
+                hx-confirm="Rewind agent/work to {{ tag }}? Later commits are removed from the branch.">
+          Roll back here
+        </button>
+      </td>
+      {% endif %}
+    </tr>
+    {% endfor %}
   </table>
   {% else %}
   <p class="muted">No checkpoints yet.</p>

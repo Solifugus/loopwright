@@ -125,7 +125,7 @@ commit.
   pause for human, or finish. Repeated-failure notification honored.
   *Done when:* decision table is unit-tested for every outcome.
 
-- [ ] **6.5 Pause/resume hardening.** Human pause/resume/stop from the UI mid-run;
+- [x] **6.5 Pause/resume hardening.** Human pause/resume/stop from the UI mid-run;
   `PAUSED_LIMIT` auto-resume with a configurable delay; rollback-to-checkpoint command.
   *Done when:* a dry-run loop can be paused, resumed, and rolled back from the UI.
 
@@ -167,7 +167,7 @@ commit.
 | 3 — VM | 2 | 2 |
 | 4 — Notify | 1 | 1 |
 | 5 — Web UI | 4 | 4 |
-| 6 — Orchestrator | 5 | 4 |
+| 6 — Orchestrator | 5 | 5 |
 | 7 — Primary Agent | 1 | 0 |
 | 8 — Finalization | 3 | 0 |
 

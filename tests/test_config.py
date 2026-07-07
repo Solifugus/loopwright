@@ -16,6 +16,16 @@ def write(tmp_path, text):
     return path
 
 
+def test_limit_resume_minutes_parses(tmp_path):
+    assert load_config(write(tmp_path, "limit_resume_minutes: 45\n")).limit_resume_minutes == 45
+
+
+@pytest.mark.parametrize("bad", ["limit_resume_minutes: -5", "limit_resume_minutes: soon"])
+def test_limit_resume_minutes_invalid(tmp_path, bad):
+    with pytest.raises(ConfigError, match="limit_resume_minutes"):
+        load_config(write(tmp_path, bad + "\n"))
+
+
 def test_missing_file_yields_defaults(tmp_path):
     config = load_config(tmp_path / "nope.yaml")
     assert config == Config()
