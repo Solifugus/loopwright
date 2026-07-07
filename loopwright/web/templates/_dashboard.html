@@ -6,6 +6,7 @@
   <div class="panel">
     <p>
       <span class="state state-{{ run.state.value }}">{{ run.state.value }}</span>
+      <span class="muted">cycle {{ run.cycle + 1 }}</span>
       {% for action in actions %}
       <button class="ctl ctl-{{ action }}"
               hx-post="/projects/{{ project.name }}/run/{{ action }}"

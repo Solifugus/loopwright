@@ -90,7 +90,7 @@ def test_crash_then_resume_skips_completed_steps(store):
     assert store.load_run("demo").state is RunState.REVIEW
 
 
-def test_controlled_failure_records_and_fails_run(store):
+def test_controlled_failure_records_and_moves_to_review(store):
     ready(store)
 
     def bad(ctx):
@@ -100,7 +100,7 @@ def test_controlled_failure_records_and_fails_run(store):
     assert Engine(store, "demo", steps).run() == FAILED
 
     run = store.load_run("demo")
-    assert run.state is RunState.FAILED
+    assert run.state is RunState.REVIEW  # decision rules choose retry/pause/fail
     assert run.step_result("two")["status"] == "failed"
     assert run.step_result("two")["detail"] == {"error": "tests did not pass"}
     assert run.step_result("three") is None
@@ -115,10 +115,11 @@ def test_record_step_replaces_result_for_same_name():
     assert run.step_result("two")["detail"] == {"attempt": 2}
 
 
-def test_failed_run_cannot_be_rerun(store):
+def test_failed_run_needs_decision_before_rerun(store):
     ready(store)
     Engine(store, "demo", [Step("x", lambda ctx: (_ for _ in ()).throw(StepFailed("no")))]).run()
-    with pytest.raises(EngineError, match="cannot run from state FAILED"):
+    # the run sits in REVIEW; only a decision (retry/new cycle) moves it back
+    with pytest.raises(EngineError, match="cannot run from state REVIEW"):
         Engine(store, "demo", [Step("x", lambda ctx: None)]).run()
 
 

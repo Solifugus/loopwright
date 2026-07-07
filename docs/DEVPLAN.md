@@ -119,7 +119,7 @@ commit.
   capture results into the run log, notify on pass.
   *Done when:* dry-run tests pass; a real run deploys a trivial candidate on the Deployment VM.
 
-- [ ] **6.4 Review and decision step.** Reviewer evaluates the checkpoint (tests passed?
+- [x] **6.4 Review and decision step.** Reviewer evaluates the checkpoint (tests passed?
   deployment passed? diff nonempty? docs touched when required?) and the orchestrator
   applies deterministic decision rules: continue, retry (with per-step retry limits),
   pause for human, or finish. Repeated-failure notification honored.
@@ -167,7 +167,7 @@ commit.
 | 3 — VM | 2 | 2 |
 | 4 — Notify | 1 | 1 |
 | 5 — Web UI | 4 | 4 |
-| 6 — Orchestrator | 5 | 3 |
+| 6 — Orchestrator | 5 | 4 |
 | 7 — Primary Agent | 1 | 0 |
 | 8 — Finalization | 3 | 0 |
 

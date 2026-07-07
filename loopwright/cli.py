@@ -54,6 +54,12 @@ def build_parser() -> argparse.ArgumentParser:
     run_deploy = run_sub.add_parser("deploy", help="run a Deployment VM test of the candidate")
     run_deploy.add_argument("project")
     run_deploy.add_argument("--timeout", type=int, default=1800, help="script timeout in seconds")
+    run_loop_parser = run_sub.add_parser("loop", help="run full dev→deploy cycles until done")
+    run_loop_parser.add_argument("project")
+    run_loop_parser.add_argument("--retry-limit", type=int, default=2)
+    run_loop_parser.add_argument("--max-cycles", type=int, default=25)
+    run_loop_parser.add_argument("--dev-timeout", type=int, default=3600)
+    run_loop_parser.add_argument("--deploy-timeout", type=int, default=1800)
 
     serve_parser = subparsers.add_parser("serve", help="run the web UI")
     serve_parser.add_argument("--host", default="127.0.0.1")
@@ -197,6 +203,41 @@ def cmd_run_step(kind: str, project: str, timeout: int) -> int:
     return 0 if outcome in ("completed", "paused-limit") else 1
 
 
+def cmd_run_loop(args) -> int:
+    from loopwright.core.config import load_config
+    from loopwright.core.model import ProjectStore
+    from loopwright.notify.ntfy import from_config
+    from loopwright.orchestrator.deploystep import deploy_step_from_config
+    from loopwright.orchestrator.devstep import dev_step_from_config
+    from loopwright.orchestrator.engine import EngineError
+    from loopwright.orchestrator.loop import run_loop
+
+    config = load_config()
+    store = ProjectStore(config.projects_dir)
+    try:
+        steps = [
+            dev_step_from_config(config, store, args.project, timeout=args.dev_timeout),
+            deploy_step_from_config(config, store, args.project, timeout=args.deploy_timeout),
+        ]
+        outcome = run_loop(
+            store,
+            args.project,
+            steps,
+            notifier=from_config(config),
+            retry_limit=args.retry_limit,
+            max_cycles=args.max_cycles,
+        )
+    except FileNotFoundError:
+        print(f"error: no project named {args.project!r}")
+        return 1
+    except EngineError as exc:
+        print(f"error: {exc}")
+        return 1
+    run = store.load_run(args.project)
+    print(f"outcome: {outcome} (run state: {run.state.value}, cycles: {run.cycle + 1})")
+    return 0 if outcome == "finished" else 1
+
+
 def cmd_serve(host: str, port: int) -> int:
     import uvicorn
 
@@ -241,6 +282,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_serve(args.host, args.port)
     if args.command == "run" and getattr(args, "run_command", None) in ("dev", "deploy"):
         return cmd_run_step(args.run_command, args.project, args.timeout)
+    if args.command == "run" and getattr(args, "run_command", None) == "loop":
+        return cmd_run_loop(args)
     if args.command == "run":
         parser.parse_args(["run", "--help"])
         return 0

@@ -242,7 +242,7 @@ def test_engine_fails_run_on_worker_failure(env):
     step_impl = make_step(env, ssh)
     outcome = Engine(env["store"], "demo", [Step(step_impl.name, step_impl)]).run()
     assert outcome == "failed"
-    assert env["store"].load_run("demo").state is RunState.FAILED
+    assert env["store"].load_run("demo").state is RunState.REVIEW
 
 
 def test_compose_prompt_mentions_project_and_marker():

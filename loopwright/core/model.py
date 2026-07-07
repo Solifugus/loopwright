@@ -90,6 +90,7 @@ class Run:
     state: RunState = RunState.DRAFT
     history: list[dict] = field(default_factory=list)
     steps: list[dict] = field(default_factory=list)
+    cycle: int = 0
 
     def transition(self, new_state: RunState) -> None:
         if new_state not in TRANSITIONS[self.state]:
@@ -124,7 +125,12 @@ class Run:
         return entry
 
     def to_dict(self) -> dict:
-        return {"state": self.state.value, "history": self.history, "steps": self.steps}
+        return {
+            "state": self.state.value,
+            "history": self.history,
+            "steps": self.steps,
+            "cycle": self.cycle,
+        }
 
     @classmethod
     def from_dict(cls, data: dict) -> "Run":
@@ -132,6 +138,7 @@ class Run:
             state=RunState(data["state"]),
             history=list(data["history"]),
             steps=list(data.get("steps", [])),
+            cycle=data.get("cycle", 0),
         )
 
 

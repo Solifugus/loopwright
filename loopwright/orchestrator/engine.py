@@ -129,8 +129,10 @@ class Engine:
             except StepFailed as exc:
                 run = self._load_running()
                 run.record_step(step.name, "failed", started, {"error": str(exc)})
+                # REVIEW, not FAILED: the decision rules (6.4) choose between
+                # retry, pause-for-human, and giving up.
                 if run.state is RunState.RUNNING:
-                    run.transition(RunState.FAILED)
+                    run.transition(RunState.REVIEW)
                 self.store.save_run(self.project, run)
                 self.log.log(step.name, f"step failed: {exc}", level="error")
                 return FAILED
