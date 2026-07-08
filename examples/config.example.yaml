@@ -34,3 +34,7 @@ openai_model: gpt-4o
 
 # Minutes to wait before auto-resuming a run parked by an AI usage limit.
 limit_resume_minutes: 30
+
+# Max unreviewed PROVISIONAL (structural) decisions allowed before a run pauses
+# for human review rather than building further on unreviewed guesses.
+provisional_cap: 2

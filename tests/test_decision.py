@@ -63,6 +63,36 @@ def test_retry_limit_zero_pauses_immediately():
     assert decision.action is Action.PAUSE
 
 
+# --- provisional cap (task 9.4) ---
+
+
+def test_provisional_cap_converts_continue_to_pause():
+    rev = review(tasks_remaining=True)  # worker + deploy ok, tasks remain
+    rev.provisional_count = 2
+    decision = decide(rev, provisional_cap=2)
+    assert decision.action is Action.PAUSE
+    assert "provisional decisions await review" in decision.reason
+
+
+def test_below_provisional_cap_still_continues():
+    rev = review(tasks_remaining=True)
+    rev.provisional_count = 1
+    assert decide(rev, provisional_cap=2).action is Action.CONTINUE
+
+
+def test_provisional_cap_does_not_block_finish():
+    rev = review(tasks_remaining=False)  # no tasks left → FINISH regardless
+    rev.provisional_count = 5
+    assert decide(rev, provisional_cap=2).action is Action.FINISH
+
+
+def test_evaluate_counts_provisionals():
+    run = Run()
+    run.record_step("dev-code", "ok", "t", {"tasks_remaining": True})
+    run.provisionals = [{"id": "a", "summary": "x"}, {"id": "b", "summary": "y"}]
+    assert evaluate(run).provisional_count == 2
+
+
 # --- evaluate: facts from run.json ---
 
 
@@ -207,6 +237,49 @@ def test_loop_pauses_after_retries_exhausted(store):
     assert store.load_run("demo").state is RunState.REVIEW
     events = [event for event, _, _ in notifier.events]
     assert Event.REPEATED_FAILURE in events
+
+
+def test_loop_pauses_at_provisional_cap(store):
+    notifier = NullNotifier()
+
+    def dev(ctx):
+        run = ctx.store.load_run(ctx.project)
+        run.provisionals = [{"id": "a", "summary": "s1"}, {"id": "b", "summary": "s2"}]
+        ctx.store.save_run(ctx.project, run)
+        return {"tasks_remaining": True}
+
+    outcome = run_loop(
+        store, "demo", [dev_like(dev), deploy_like()], notifier=notifier, provisional_cap=2
+    )
+    assert outcome == PAUSED_FOR_HUMAN
+    assert store.load_run("demo").state is RunState.REVIEW
+    # a cap pause is not a "repeated failure" — it asks for a look
+    events = [event for event, _, _ in notifier.events]
+    assert Event.APPROVAL_NEEDED in events
+    assert Event.REPEATED_FAILURE not in events
+
+
+def test_ack_below_cap_allows_the_next_cycle(store):
+    from loopwright import service
+
+    calls = {"n": 0}
+
+    def dev(ctx):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            run = ctx.store.load_run(ctx.project)
+            run.provisionals = [{"id": "a", "summary": "s1"}, {"id": "b", "summary": "s2"}]
+            ctx.store.save_run(ctx.project, run)
+            return {"tasks_remaining": True}
+        return {"tasks_remaining": False}
+
+    steps = [dev_like(dev), deploy_like()]
+    assert run_loop(store, "demo", steps, provisional_cap=2) == PAUSED_FOR_HUMAN
+
+    # human acks one, dropping below the cap
+    assert service.ack_provisional(store, "demo", "a") is True
+    assert run_loop(store, "demo", steps, provisional_cap=2) == FINISHED
+    assert calls["n"] == 2  # a second cycle actually ran
 
 
 def test_loop_usage_limit_then_human_stop(store):

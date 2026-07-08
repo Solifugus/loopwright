@@ -229,7 +229,7 @@ with fakes. Tasks marked `(needs: …)` must wait for the named task.
   doctrine_dir; project creation from a valid doctrine_dir still
   round-trips in tests.
 
-- [ ] **9.4 DECISIONS.md ingestion and the PROVISIONAL cap.** `(needs:
+- [x] **9.4 DECISIONS.md ingestion and the PROVISIONAL cap.** `(needs:
   5.1)` Extend the fetch-gate to parse lines *added* to
   `docs/agent/DECISIONS.md` in the fetched range. Entries whose heading
   line contains `PROVISIONAL` are appended to an `unreviewed_provisionals`
@@ -300,6 +300,6 @@ attention to mechanism.
 | 6 — Orchestrator    | 5     | 5    |
 | 7 — Primary Agent   | 1     | 1    |
 | 8 — Finalization    | 3     | 3    |
-| 9 - Trust Hardening | 7     | 4    |
+| 9 - Trust Hardening | 7     | 5    |
 
 Update checkboxes and this table in the same commit as the work.

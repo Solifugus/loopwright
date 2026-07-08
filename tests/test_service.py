@@ -251,6 +251,28 @@ def test_templates_still_fall_back_per_file(store, tmp_path):
     assert "Development Plan" in drafts["DEVPLAN.md"]  # built-in template fallback
 
 
+# --- provisional decisions (task 9.4) ---
+
+
+def test_create_project_seeds_empty_agent_files(store, doctrine):
+    project = service.create_project(store, "demo", doctrine_dir=doctrine)
+    for filename in ("DECISIONS.md", "TASKLOG.md", "BLOCKED.md"):
+        assert repo_file(project.repo_path, "design/main", f"docs/agent/{filename}") == ""
+
+
+def test_list_and_ack_provisional(store, doctrine):
+    service.create_project(store, "demo", doctrine_dir=doctrine)
+    run = store.load_run("demo")
+    run.provisionals = [{"id": "abc", "summary": "s", "commit": "c", "checkpoint": None}]
+    store.save_run("demo", run)
+
+    assert service.list_provisionals(store, "demo")[0]["id"] == "abc"
+    assert service.ack_provisional(store, "demo", "abc") is True
+    assert store.load_run("demo").provisionals == []
+    # idempotent: a repeated ack is a harmless no-op
+    assert service.ack_provisional(store, "demo", "abc") is False
+
+
 # --- rollback to checkpoint (task 6.5) ---
 
 

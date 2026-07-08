@@ -26,6 +26,17 @@ def test_limit_resume_minutes_invalid(tmp_path, bad):
         load_config(write(tmp_path, bad + "\n"))
 
 
+def test_provisional_cap_parses(tmp_path):
+    assert load_config(write(tmp_path, "provisional_cap: 5\n")).provisional_cap == 5
+    assert load_config(write(tmp_path, "")).provisional_cap == 2  # default
+
+
+@pytest.mark.parametrize("bad", ["provisional_cap: -1", "provisional_cap: lots"])
+def test_provisional_cap_invalid(tmp_path, bad):
+    with pytest.raises(ConfigError, match="provisional_cap"):
+        load_config(write(tmp_path, bad + "\n"))
+
+
 def test_missing_file_yields_defaults(tmp_path):
     config = load_config(tmp_path / "nope.yaml")
     assert config == Config()

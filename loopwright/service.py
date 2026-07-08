@@ -24,6 +24,9 @@ PACKET_FILES = ("DESIGN.md", "DEVPLAN.md", "TESTPLAN.md")
 DOCTRINE_FILES = ("PRINCIPLES.md", "AGENT_RULES.md")
 # Where canonical doctrine lands inside each project repo (design doc layout).
 DOCTRINE_DEST = "docs/agent"
+# Agent working files seeded empty at creation so the fetch-gate's rules about
+# them are explicit from the very first push (design doc, Repository Layout).
+AGENT_WORK_FILES = ("DECISIONS.md", "TASKLOG.md", "BLOCKED.md")
 PROJECT_PLACEHOLDER = "{{PROJECT}}"
 
 # Human-initiated run controls. Each maps to a target state; extra guards below
@@ -143,7 +146,8 @@ def create_project(store: ProjectStore, name: str, doctrine_dir: Path) -> Projec
         pdir.mkdir()
         for filename, content in packet_files.items():
             (pdir / filename).write_text(content)
-        ProjectRepo.init(repo_path, {**doctrine_files, **packet_files})
+        agent_files = {f"{DOCTRINE_DEST}/{f}": "" for f in AGENT_WORK_FILES}
+        ProjectRepo.init(repo_path, {**doctrine_files, **agent_files, **packet_files})
     except Exception:
         shutil.rmtree(store.project_dir(name), ignore_errors=True)
         raise
@@ -224,6 +228,25 @@ def rollback_to_checkpoint(store: ProjectStore, name: str, tag: str) -> str:
     head = repo.head_of(WORK_BRANCH)
     run_log(store, name).log("rollback", f"agent/work rewound to {tag} ({head[:10]})")
     return head
+
+
+def list_provisionals(store: ProjectStore, name: str) -> list[dict]:
+    """Unreviewed PROVISIONAL decisions recorded for the project."""
+    return list(store.load_run(name).provisionals)
+
+
+def ack_provisional(store: ProjectStore, name: str, decision_id: str) -> bool:
+    """Acknowledge a PROVISIONAL decision; idempotent (a repeat ack is a no-op).
+
+    Dropping an entry below the cap leaves a cap-paused run resumable: the run
+    sits in REVIEW, which ``run_loop``'s ``_enter`` treats as a fresh cycle.
+    """
+    run = store.load_run(name)
+    removed = run.remove_provisional(decision_id)
+    if removed:
+        store.save_run(name, run)
+        run_log(store, name).log("provisional", f"acked provisional {decision_id}")
+    return removed
 
 
 def promote_candidate(store: ProjectStore, name: str) -> str:

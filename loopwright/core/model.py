@@ -91,6 +91,24 @@ class Run:
     history: list[dict] = field(default_factory=list)
     steps: list[dict] = field(default_factory=list)
     cycle: int = 0
+    # Unreviewed PROVISIONAL decisions ingested from DECISIONS.md; each is
+    # {id, summary, commit, checkpoint}. The orchestrator caps how many may
+    # accumulate before a run pauses for human review.
+    provisionals: list[dict] = field(default_factory=list)
+
+    def add_provisional(self, entry: dict) -> bool:
+        """Record an unreviewed PROVISIONAL decision; ignore duplicates by id."""
+        if any(p["id"] == entry["id"] for p in self.provisionals):
+            return False
+        self.provisionals.append(entry)
+        return True
+
+    def remove_provisional(self, decision_id: str) -> bool:
+        """Drop a provisional by id (an ack); returns True if one was removed."""
+        kept = [p for p in self.provisionals if p["id"] != decision_id]
+        removed = len(kept) != len(self.provisionals)
+        self.provisionals = kept
+        return removed
 
     def transition(self, new_state: RunState) -> None:
         if new_state not in TRANSITIONS[self.state]:
@@ -130,6 +148,7 @@ class Run:
             "history": self.history,
             "steps": self.steps,
             "cycle": self.cycle,
+            "provisionals": self.provisionals,
         }
 
     @classmethod
@@ -139,6 +158,7 @@ class Run:
             history=list(data["history"]),
             steps=list(data.get("steps", [])),
             cycle=data.get("cycle", 0),
+            provisionals=list(data.get("provisionals", [])),
         )
 
 

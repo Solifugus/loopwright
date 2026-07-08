@@ -11,8 +11,10 @@ Rule table (first match wins):
 1. a step failed and its retry budget remains       → RETRY that step
 2. a step failed and the budget is exhausted        → PAUSE (repeated failure)
 3. worker + deployment ok, no tasks remaining       → FINISH (candidate ready)
-4. worker + deployment ok, tasks remaining          → CONTINUE (next cycle)
-5. anything else (missing/limit/partial results)    → PAUSE (needs a human)
+4. worker + deployment ok, tasks remain, provisional
+   cap reached                                       → PAUSE (review provisionals)
+5. worker + deployment ok, tasks remaining          → CONTINUE (next cycle)
+6. anything else (missing/limit/partial results)    → PAUSE (needs a human)
 
 ("docs touched when required" from the design doc is deferred until packets
 can declare documentation requirements — v0.2 material.)
@@ -47,6 +49,8 @@ class Review:
     # Defaults True so callers that predate the verify step still construct a
     # Review; evaluate() always sets it from the recorded step.
     verify_ok: bool = True
+    # Count of unreviewed PROVISIONAL decisions; drives the cap rule.
+    provisional_count: int = 0
 
 
 @dataclass
@@ -72,11 +76,15 @@ def evaluate(run: Run) -> Review:
         # for "which independently-verified checkpoint this cycle produced."
         checkpoint=verify["detail"].get("checkpoint") if verify else None,
         failed_step=next((s["name"] for s in run.steps if s["status"] == "failed"), None),
+        provisional_count=len(run.provisionals),
     )
 
 
 def decide(
-    review: Review, attempts: dict[str, int] | None = None, retry_limit: int = 2
+    review: Review,
+    attempts: dict[str, int] | None = None,
+    retry_limit: int = 2,
+    provisional_cap: int = 2,
 ) -> Decision:
     attempts = attempts or {}
     if review.failed_step is not None:
@@ -95,5 +103,11 @@ def decide(
     if review.worker_ok and review.deployment_ok:
         if not review.tasks_remaining:
             return Decision(Action.FINISH, "all tasks complete and deployment passed")
+        # Don't build further on unreviewed structural guesses past the cap.
+        if review.provisional_count >= provisional_cap:
+            return Decision(
+                Action.PAUSE,
+                f"{review.provisional_count} provisional decisions await review",
+            )
         return Decision(Action.CONTINUE, "cycle passed and tasks remain")
     return Decision(Action.PAUSE, "run results are incomplete; a human needs to look")

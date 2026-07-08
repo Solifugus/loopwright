@@ -33,6 +33,28 @@
   </div>
   {% endif %}
 
+  {% if provisionals %}
+  <div class="panel flash">
+    <strong>{{ provisionals|length }} provisional decision(s) await review.</strong>
+    <table>
+      <tr><th>Summary</th><th>Reverts to</th><th></th></tr>
+      {% for p in provisionals %}
+      <tr>
+        <td>{{ p["summary"] }}</td>
+        <td class="muted"><code>{{ p["checkpoint"] or "—" }}</code></td>
+        <td>
+          <button class="ctl approve"
+                  hx-post="/projects/{{ project.name }}/provisional/{{ p['id'] }}/ack"
+                  hx-target="#dashboard" hx-swap="outerHTML">
+            Ack
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
   {% if run.steps %}
   <h2>Steps</h2>
   <table>

@@ -146,6 +146,35 @@ class DeveloperVMStep:
             )
         raise StepFailed(f"fetch-gate rejected push: {verdict.reason}")
 
+    def _ingest_provisionals(self, ctx, before: str, after: str) -> None:
+        """Record PROVISIONAL decisions from the accepted push and notify."""
+        entries = fetchgate.parse_provisionals(self.repo, before, after)
+        if not entries:
+            return
+        # The checkpoint to revert to is the one preceding this cycle's work.
+        checkpoint = self.repo.latest_checkpoint(before)
+        run = ctx.store.load_run(self.project)
+        added = [
+            entry
+            for raw in entries
+            if run.add_provisional(entry := {**raw, "checkpoint": checkpoint})
+        ]
+        if not added:
+            return
+        ctx.store.save_run(self.project, run)
+        for entry in added:
+            ctx.log.log(
+                self.name,
+                f"PROVISIONAL decision recorded: {entry['summary']}",
+                decision_id=entry["id"],
+            )
+            if ctx.notifier is not None:
+                ctx.notifier.notify(
+                    Event.PROVISIONAL_DECISION,
+                    f"{entry['summary']} (id {entry['id']})",
+                    project=self.project,
+                )
+
     def __call__(self, ctx) -> dict:
         if not self.vm.is_running():
             ctx.log.log(self.name, "starting developer VM")
@@ -181,6 +210,7 @@ class DeveloperVMStep:
             raise StepFailed("worker agent pushed no new commits on " + WORK_BRANCH)
 
         self._enforce_fetch_gate(ctx, before, after)
+        self._ingest_provisionals(ctx, before, after)
 
         # No checkpoint here: a worker push is only *accepted* at this step.
         # The tag is earned later, in verify-tests, after the Orchestrator

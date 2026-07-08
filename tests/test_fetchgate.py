@@ -275,6 +275,59 @@ def test_step_rejects_devplan_deletion_and_restores_branch(env):
     assert env["repo"].checkpoints() == []
 
 
+# --- DECISIONS.md provisional ingestion (task 9.4) ---
+
+
+def test_parse_provisionals_detects_added_provisional(repo):
+    before = repo.head_of("agent/work")
+    commit(
+        repo,
+        {"docs/agent/DECISIONS.md": "## D1 PROVISIONAL: switched storage to sqlite\nrationale\n"},
+    )
+    after = repo.head_of("agent/work")
+    entries = fetchgate.parse_provisionals(repo, before, after)
+    assert len(entries) == 1
+    assert "switched storage to sqlite" in entries[0]["summary"]
+    assert entries[0]["commit"] == after
+    assert entries[0]["id"]  # a stable content id
+
+
+def test_parse_provisionals_ignores_material_entries(repo):
+    before = repo.head_of("agent/work")
+    commit(repo, {"docs/agent/DECISIONS.md": "## D2: chose ruff over flake8\nbecause\n"})
+    after = repo.head_of("agent/work")
+    assert fetchgate.parse_provisionals(repo, before, after) == []
+
+
+def test_parse_provisionals_id_is_stable_for_same_content(repo):
+    before = repo.head_of("agent/work")
+    commit(repo, {"docs/agent/DECISIONS.md": "### PROVISIONAL — schema guess\n"})
+    after = repo.head_of("agent/work")
+    first = fetchgate.parse_provisionals(repo, before, after)
+    second = fetchgate.parse_provisionals(repo, before, after)
+    assert first == second  # idempotent re-ingestion
+
+
+def test_step_ingests_persists_and_notifies_provisional(env):
+    ssh = ContentWorkerSSH(
+        env["vm_bare"],
+        env["tmp"],
+        {
+            "src/x.py": "x = 1\n",
+            "docs/agent/DECISIONS.md": "## PROVISIONAL: guessed the public API shape\nwhy\n",
+        },
+    )
+    make_step(env, ssh)(env["ctx"])
+
+    run = env["ctx"].store.load_run("demo")
+    assert len(run.provisionals) == 1
+    entry = run.provisionals[0]
+    assert "guessed the public API shape" in entry["summary"]
+    assert "checkpoint" in entry  # preceding-checkpoint slot recorded (None here)
+    events = [event for event, _, _ in env["notifier"].events]
+    assert Event.PROVISIONAL_DECISION in events
+
+
 def test_step_accepts_legal_push(env):
     before = env["repo"].head_of("agent/work")
     ssh = ContentWorkerSSH(

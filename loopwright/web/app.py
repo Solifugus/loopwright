@@ -63,6 +63,7 @@ def create_app(store: ProjectStore, notifier=None, assistant=None, doctrine_dir=
             "run": run,
             "actions": service.available_actions(run),
             "checkpoints": service.list_checkpoints(store, name),
+            "provisionals": run.provisionals,
             "can_rollback": run.state in service.ROLLBACK_STATES,
             "release_pending": (
                 run.state.value == "REVIEW" and service.release_status(store, name)["pending"]
@@ -126,6 +127,15 @@ def create_app(store: ProjectStore, notifier=None, assistant=None, doctrine_dir=
         except (ValueError, GitError) as exc:
             error = str(exc)
         context = _dashboard_context(request, name, error=error)
+        return templates.TemplateResponse(request, "_dashboard.html", context)
+
+    @app.post("/projects/{name}/provisional/{decision_id}/ack", response_class=HTMLResponse)
+    def ack_provisional(request: Request, name: str, decision_id: str):
+        _load_or_404(name)
+        # Idempotent: acking an already-handled decision is a harmless no-op,
+        # since phone taps arrive late and twice.
+        service.ack_provisional(store, name, decision_id)
+        context = _dashboard_context(request, name)
         return templates.TemplateResponse(request, "_dashboard.html", context)
 
     @app.get("/projects/{name}/logs", response_class=HTMLResponse)

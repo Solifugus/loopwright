@@ -106,6 +106,21 @@ def test_run_roundtrip_preserves_state_and_history(tmp_path):
     assert [h["to"] for h in reloaded.history] == ["READY", "RUNNING"]
 
 
+def test_run_roundtrip_preserves_provisionals(tmp_path):
+    store = ProjectStore(tmp_path)
+    store.create("demo", repo_path="/r")
+    run = store.load_run("demo")
+    assert run.add_provisional({"id": "x", "summary": "s", "commit": "c", "checkpoint": None})
+    assert not run.add_provisional({"id": "x", "summary": "dup"})  # id dedupe
+    store.save_run("demo", run)
+
+    reloaded = store.load_run("demo")
+    assert reloaded == run
+    assert reloaded.provisionals[0]["id"] == "x"
+    assert reloaded.remove_provisional("x") is True
+    assert reloaded.provisionals == []
+
+
 def test_create_duplicate_project_raises(tmp_path):
     store = ProjectStore(tmp_path)
     store.create("demo", repo_path="/r")

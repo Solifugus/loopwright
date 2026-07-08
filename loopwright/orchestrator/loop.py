@@ -111,6 +111,7 @@ def run_loop(
     max_cycles: int = 25,
     poll_interval: float = 2.0,
     limit_resume_delay: float = 1800.0,
+    provisional_cap: int = 2,
     sleep=time.sleep,
 ) -> str:
     """Drive cycles until finish, human pause, stop, or the cycle cap.
@@ -134,7 +135,7 @@ def run_loop(
             continue  # resumed: engine picks up at the first incomplete step
 
         review = evaluate(store.load_run(project))
-        decision = decide(review, attempts, retry_limit)
+        decision = decide(review, attempts, retry_limit, provisional_cap)
         log.log("review", f"decision: {decision.action.value} — {decision.reason}")
 
         if decision.action is Action.RETRY:
@@ -170,7 +171,9 @@ def run_loop(
                     project=project,
                 )
             return FINISHED
-        # Action.PAUSE — leave the run in REVIEW for the human
+        # Action.PAUSE — leave the run in REVIEW for the human. A step failure
+        # is a repeated-failure alert; a cap/incomplete pause just needs a look.
         if notifier is not None:
-            notifier.notify(Event.REPEATED_FAILURE, decision.reason, project=project)
+            event = Event.REPEATED_FAILURE if review.failed_step else Event.APPROVAL_NEEDED
+            notifier.notify(event, decision.reason, project=project)
         return PAUSED_FOR_HUMAN

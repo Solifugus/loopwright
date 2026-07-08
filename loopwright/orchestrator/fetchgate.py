@@ -23,6 +23,7 @@ resetting the branch, logging, notifying, and failing the step on rejection.
 """
 
 import difflib
+import hashlib
 import posixpath
 import re
 from dataclasses import dataclass, field
@@ -33,6 +34,11 @@ from loopwright.gitctl.repo import GitError, ProjectRepo
 # root (v0.1) or under docs/ (later restructures).
 PROTECTED_BASENAMES = frozenset({"DESIGN.md", "PRINCIPLES.md", "AGENT_RULES.md"})
 DEVPLAN_BASENAME = "DEVPLAN.md"
+DECISIONS_BASENAME = "DECISIONS.md"
+
+# A Markdown heading line (any level) opening a decision-log entry.
+_HEADING_RE = re.compile(r"^\s*#{1,6}\s+(.*\S)\s*$")
+_PROVISIONAL = "PROVISIONAL"
 
 # A DEVPLAN task line: an optional-indent list bullet, a checkbox, then text.
 _CHECKBOX_RE = re.compile(r"^(\s*[-*]\s+)\[([ xX])\](.*)$")
@@ -85,6 +91,41 @@ def _file_lines(repo: ProjectRepo, ref: str, path: str) -> list[str]:
         return repo.show(ref, path).splitlines()
     except GitError:
         return []  # file absent at this ref (e.g. freshly created)
+
+
+def parse_provisionals(repo: ProjectRepo, before: str, after: str) -> list[dict]:
+    """Parse PROVISIONAL entries *added* to docs/agent/DECISIONS.md in before..after.
+
+    Returns ``[{id, summary, commit}]`` — one per added heading line whose text
+    contains ``PROVISIONAL``. Pure parsing: the caller attaches the preceding
+    checkpoint, persists the entries, and fires notifications. The id is a
+    content hash of (commit, summary) so re-ingesting the same push is
+    idempotent.
+    """
+    changed = repo.changed_files(before, after)
+    entries: list[dict] = []
+    for path in changed:
+        if posixpath.basename(path) != DECISIONS_BASENAME:
+            continue
+        before_lines = _file_lines(repo, before, path)
+        after_lines = _file_lines(repo, after, path)
+        for line in _added_lines(before_lines, after_lines):
+            heading = _HEADING_RE.match(line)
+            if heading and _PROVISIONAL in heading.group(1):
+                summary = heading.group(1).strip()
+                ident = hashlib.sha1(f"{after}:{summary}".encode()).hexdigest()[:8]
+                entries.append({"id": ident, "summary": summary, "commit": after})
+    return entries
+
+
+def _added_lines(before_lines: list[str], after_lines: list[str]) -> list[str]:
+    """Lines present in `after` that are new relative to `before` (insert/replace)."""
+    matcher = difflib.SequenceMatcher(a=before_lines, b=after_lines, autojunk=False)
+    added: list[str] = []
+    for tag, _i1, _i2, j1, j2 in matcher.get_opcodes():
+        if tag in ("insert", "replace"):
+            added.extend(after_lines[j1:j2])
+    return added
 
 
 def _inspect_devplan(

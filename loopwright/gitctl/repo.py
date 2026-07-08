@@ -155,6 +155,16 @@ class ProjectRepo:
         out = _run_git(self.path, "tag", "--list", "checkpoint/*")
         return sorted(line for line in out.splitlines() if line)
 
+    def latest_checkpoint(self, ref: str) -> str | None:
+        """The most recent checkpoint tag reachable from ref, or None if there is none."""
+        try:
+            out = _run_git(
+                self.path, "describe", "--tags", "--abbrev=0", "--match", "checkpoint/*", ref
+            )
+        except GitError:
+            return None
+        return out.strip() or None
+
     def next_checkpoint_number(self) -> int:
         numbers = [
             int(m.group(1))

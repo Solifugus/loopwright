@@ -320,6 +320,30 @@ def test_rollback_post_while_running_shows_error(store, client, doctrine):
     assert repo.head_of("agent/work") != old_head  # branch untouched
 
 
+# --- provisional decisions (task 9.4) ---
+
+
+def test_provisional_shown_and_ack_route_removes_it(store, client, doctrine):
+    service.create_project(store, "demo", doctrine_dir=doctrine)
+    run = store.load_run("demo")
+    run.provisionals = [
+        {"id": "abc", "summary": "guessed the schema", "commit": "c", "checkpoint": None}
+    ]
+    store.save_run("demo", run)
+
+    page = client.get("/projects/demo/dashboard")
+    assert "guessed the schema" in page.text
+    assert "await review" in page.text
+
+    response = client.post("/projects/demo/provisional/abc/ack")
+    assert response.status_code == 200
+    assert "guessed the schema" not in response.text
+    assert store.load_run("demo").provisionals == []
+
+    # idempotent: a late double-tap is harmless
+    assert client.post("/projects/demo/provisional/abc/ack").status_code == 200
+
+
 # --- log viewer (task 5.4) ---
 
 

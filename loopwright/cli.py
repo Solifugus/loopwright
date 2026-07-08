@@ -68,6 +68,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="minutes before auto-resuming a usage-limit pause (default: from config)",
     )
 
+    prov_parser = subparsers.add_parser("provisional", help="review PROVISIONAL decisions")
+    prov_sub = prov_parser.add_subparsers(dest="provisional_command")
+    prov_list = prov_sub.add_parser("list", help="list unreviewed provisional decisions")
+    prov_list.add_argument("project")
+    prov_ack = prov_sub.add_parser("ack", help="acknowledge a provisional decision")
+    prov_ack.add_argument("project")
+    prov_ack.add_argument("decision_id")
+
     serve_parser = subparsers.add_parser("serve", help="run the web UI")
     serve_parser.add_argument("--host", default="127.0.0.1")
     serve_parser.add_argument("--port", type=int, default=8000)
@@ -241,6 +249,7 @@ def cmd_run_loop(args) -> int:
             retry_limit=args.retry_limit,
             max_cycles=args.max_cycles,
             limit_resume_delay=resume_minutes * 60,
+            provisional_cap=config.provisional_cap,
         )
     except FileNotFoundError:
         print(f"error: no project named {args.project!r}")
@@ -251,6 +260,32 @@ def cmd_run_loop(args) -> int:
     run = store.load_run(args.project)
     print(f"outcome: {outcome} (run state: {run.state.value}, cycles: {run.cycle + 1})")
     return 0 if outcome == "finished" else 1
+
+
+def cmd_provisional(args) -> int:
+    from loopwright import service
+    from loopwright.core.config import load_config
+    from loopwright.core.model import ProjectStore
+
+    config = load_config()
+    store = ProjectStore(config.projects_dir)
+    try:
+        if args.provisional_command == "list":
+            entries = service.list_provisionals(store, args.project)
+            if not entries:
+                print("no unreviewed provisional decisions")
+                return 0
+            for entry in entries:
+                print(f"{entry['id']}  {entry['summary']}  (checkpoint: {entry.get('checkpoint')})")
+            return 0
+        if service.ack_provisional(store, args.project, args.decision_id):
+            print(f"acked provisional {args.decision_id}")
+            return 0
+        print(f"no provisional {args.decision_id!r} to ack (already handled?)")
+        return 0
+    except FileNotFoundError:
+        print(f"error: no project named {args.project!r}")
+        return 1
 
 
 def cmd_serve(host: str, port: int) -> int:
@@ -292,6 +327,11 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_project(args)
     if args.command == "project":
         parser.parse_args(["project", "--help"])
+        return 0
+    if args.command == "provisional" and getattr(args, "provisional_command", None):
+        return cmd_provisional(args)
+    if args.command == "provisional":
+        parser.parse_args(["provisional", "--help"])
         return 0
     if args.command == "serve":
         return cmd_serve(args.host, args.port)

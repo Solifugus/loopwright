@@ -44,6 +44,7 @@ class Config:
     openai_api_key_env: str = "OPENAI_API_KEY"
     openai_model: str = "gpt-4o"
     limit_resume_minutes: int = 30  # auto-resume delay after a usage-limit pause
+    provisional_cap: int = 2  # max unreviewed PROVISIONAL decisions before a run pauses
 
     def __post_init__(self) -> None:
         self.projects_dir = Path(self.projects_dir).expanduser()
@@ -99,11 +100,9 @@ def load_config(path: Path | str | None = None) -> Config:
             if not isinstance(value, str) or not value:
                 raise ConfigError(f"{resolved}: {key} must be a non-empty string")
             kwargs[key] = Path(value)
-        elif key == "limit_resume_minutes":
+        elif key in ("limit_resume_minutes", "provisional_cap"):
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-                raise ConfigError(
-                    f"{resolved}: limit_resume_minutes must be a non-negative integer"
-                )
+                raise ConfigError(f"{resolved}: {key} must be a non-negative integer")
             kwargs[key] = value
         elif key == "ntfy_topic":
             if value is not None and (not isinstance(value, str) or not value):
