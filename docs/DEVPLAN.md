@@ -169,7 +169,7 @@ with fakes. Tasks marked `(needs: …)` must wait for the named task.
 
 ## Phase 9 — Trust Hardening
 
-- [ ] **9.1 Fetch-gate: inspect every worker push before accepting it.**
+- [x] **9.1 Fetch-gate: inspect every worker push before accepting it.**
   New module `loopwright/orchestrator/fetchgate.py` plus a
   `ProjectRepo.changed_files(before, after)` helper in `gitctl/repo.py`
   (wraps `git diff --name-only before..after`). After `fetch_from` in
@@ -291,6 +291,6 @@ attention to mechanism.
 | 6 — Orchestrator    | 5     | 5    |
 | 7 — Primary Agent   | 1     | 1    |
 | 8 — Finalization    | 3     | 3    |
-| 9 - Trust Hardening |       |      |
+| 9 - Trust Hardening | 6     | 1    |
 
 Update checkboxes and this table in the same commit as the work.

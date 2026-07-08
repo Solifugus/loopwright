@@ -14,6 +14,7 @@ class Event(Enum):
     RUN_STARTED = ("Run started", "default", "arrow_forward")
     CHECKPOINT_PASSED = ("Checkpoint passed", "default", "white_check_mark")
     DEPLOYMENT_PASSED = ("Deployment passed", "default", "rocket")
+    RULE_VIOLATION = ("Rule violation rejected", "high", "no_entry")
     REPEATED_FAILURE = ("Repeated failure", "high", "rotating_light")
     LIMIT_REACHED = ("Usage limit reached", "high", "hourglass")
     APPROVAL_NEEDED = ("Human approval needed", "high", "raising_hand")

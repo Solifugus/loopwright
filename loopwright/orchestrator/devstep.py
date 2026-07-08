@@ -25,6 +25,7 @@ from loopwright.core.config import Config
 from loopwright.core.model import ProjectStore
 from loopwright.gitctl.repo import ProjectRepo, WORK_BRANCH
 from loopwright.notify.ntfy import Event
+from loopwright.orchestrator import fetchgate
 from loopwright.orchestrator.engine import Step, StepFailed, UsageLimitReached
 from loopwright.vmctl.ssh import SSHTimeout
 from loopwright.vmctl.vm import LibvirtVM
@@ -128,6 +129,25 @@ class DeveloperVMStep:
             )
         ctx.log.log(self.name, "repo synced to developer VM (agent/work includes design/main)")
 
+    def _enforce_fetch_gate(self, ctx, before: str, after: str) -> None:
+        """Inspect the fetched range; on rejection restore the branch and fail."""
+        verdict = fetchgate.inspect_range(self.repo, before, after)
+        if verdict.ok:
+            return
+        self.repo.reset_branch(WORK_BRANCH, before)
+        ctx.log.log(
+            self.name,
+            f"fetch-gate REJECTED push: {verdict.reason}",
+            level="error",
+            offending_files=verdict.offending_files,
+            devplan_diff=verdict.devplan_diff,
+        )
+        if ctx.notifier is not None:
+            ctx.notifier.notify(
+                Event.RULE_VIOLATION, verdict.reason, project=self.project
+            )
+        raise StepFailed(f"fetch-gate rejected push: {verdict.reason}")
+
     def __call__(self, ctx) -> dict:
         if not self.vm.is_running():
             ctx.log.log(self.name, "starting developer VM")
@@ -161,6 +181,8 @@ class DeveloperVMStep:
                 ctx.log.log(self.name, "worker reports all tasks complete")
                 return {"tasks_remaining": False, "commit": after, "output_tail": tail}
             raise StepFailed("worker agent pushed no new commits on " + WORK_BRANCH)
+
+        self._enforce_fetch_gate(ctx, before, after)
 
         tag = self.repo.tag_checkpoint(self.checkpoint_slug)
         ctx.log.log(self.name, f"checkpoint tagged: {tag}")

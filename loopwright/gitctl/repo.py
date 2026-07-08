@@ -146,6 +146,11 @@ class ProjectRepo:
     def head_of(self, branch: str) -> str:
         return _run_git(self.path, "rev-parse", branch).strip()
 
+    def changed_files(self, before: str, after: str) -> list[str]:
+        """Repo-relative paths that differ between two commits (``before..after``)."""
+        out = _run_git(self.path, "diff", "--name-only", f"{before}..{after}")
+        return [line for line in out.splitlines() if line]
+
     def checkpoints(self) -> list[str]:
         out = _run_git(self.path, "tag", "--list", "checkpoint/*")
         return sorted(line for line in out.splitlines() if line)
