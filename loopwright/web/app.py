@@ -138,6 +138,18 @@ def create_app(store: ProjectStore, notifier=None, assistant=None, doctrine_dir=
         context = _dashboard_context(request, name)
         return templates.TemplateResponse(request, "_dashboard.html", context)
 
+    @app.post("/projects/{name}/provisional/{decision_id}/revert", response_class=HTMLResponse)
+    def revert_provisional(request: Request, name: str, decision_id: str):
+        _load_or_404(name)
+        error = ""
+        try:
+            # Idempotent: reverting an already-handled decision is a no-op.
+            service.revert_provisional(store, name, decision_id)
+        except (ValueError, GitError) as exc:
+            error = str(exc)
+        context = _dashboard_context(request, name, error=error)
+        return templates.TemplateResponse(request, "_dashboard.html", context)
+
     @app.get("/projects/{name}/logs", response_class=HTMLResponse)
     def logs_page(request: Request, name: str):
         project = _load_or_404(name)

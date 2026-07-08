@@ -37,6 +37,17 @@ def test_provisional_cap_invalid(tmp_path, bad):
         load_config(write(tmp_path, bad + "\n"))
 
 
+def test_web_base_url_parses(tmp_path):
+    config = load_config(write(tmp_path, "web_base_url: http://192.168.1.10:8000\n"))
+    assert config.web_base_url == "http://192.168.1.10:8000"
+    assert load_config(write(tmp_path, "")).web_base_url is None  # default
+
+
+def test_web_base_url_invalid(tmp_path):
+    with pytest.raises(ConfigError, match="web_base_url"):
+        load_config(write(tmp_path, "web_base_url: 42\n"))
+
+
 def test_missing_file_yields_defaults(tmp_path):
     config = load_config(tmp_path / "nope.yaml")
     assert config == Config()

@@ -247,7 +247,7 @@ with fakes. Tasks marked `(needs: …)` must wait for the named task.
   persisted, and notified; the cap converts CONTINUE into PAUSE; acking
   below the cap allows the next cycle.
 
-- [ ] **9.5 Fifteen-second review: ACK / REVERT actions on provisional
+- [x] **9.5 Fifteen-second review: ACK / REVERT actions on provisional
   notifications.** `(needs: 5.4)` Add `rollback_to_checkpoint(project,
   tag)` to `service.py` if absent: reset `agent/work` to the tagged
   commit, drop provisional entries at or after it, log, and leave the run
@@ -300,6 +300,6 @@ attention to mechanism.
 | 6 — Orchestrator    | 5     | 5    |
 | 7 — Primary Agent   | 1     | 1    |
 | 8 — Finalization    | 3     | 3    |
-| 9 - Trust Hardening | 7     | 5    |
+| 9 - Trust Hardening | 7     | 6    |
 
 Update checkboxes and this table in the same commit as the work.

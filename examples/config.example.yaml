@@ -28,6 +28,11 @@ ntfy_server: https://ntfy.sh
 # Pick a hard-to-guess topic name; anyone who knows it can read your notifications.
 ntfy_topic: loopwright-solifugus
 
+# Public base URL of the web UI, reachable from your phone. When set, PROVISIONAL
+# notifications carry ACK/REVERT buttons that POST to these routes. Leave unset
+# to send plain notifications.
+web_base_url: http://192.168.122.1:8000
+
 # Name of the environment variable holding the OpenAI API key for the Primary Agent.
 openai_api_key_env: OPENAI_API_KEY
 openai_model: gpt-4o

@@ -173,6 +173,7 @@ class DeveloperVMStep:
                     Event.PROVISIONAL_DECISION,
                     f"{entry['summary']} (id {entry['id']})",
                     project=self.project,
+                    decision_id=entry["id"],
                 )
 
     def __call__(self, ctx) -> dict:

@@ -29,17 +29,42 @@ class Event(Enum):
 
 
 class NtfyNotifier:
-    def __init__(self, server: str, topic: str, timeout: int = 10):
+    def __init__(
+        self, server: str, topic: str, web_base_url: str | None = None, timeout: int = 10
+    ):
         self.url = f"{server.rstrip('/')}/{topic}"
+        self.web_base_url = web_base_url.rstrip("/") if web_base_url else None
         self.timeout = timeout
 
-    def notify(self, event: Event, message: str, project: str | None = None) -> bool:
+    def _provisional_actions(
+        self, event: Event, project: str | None, decision_id: str | None
+    ) -> str | None:
+        """The ntfy X-Actions value giving a PROVISIONAL notification ACK/REVERT
+        buttons that POST to the web UI, or None when not applicable."""
+        if event is not Event.PROVISIONAL_DECISION:
+            return None
+        if not (self.web_base_url and project and decision_id):
+            return None
+        base = f"{self.web_base_url}/projects/{project}/provisional/{decision_id}"
+        return (
+            f"http, Ack, {base}/ack, method=POST, clear=true; "
+            f"http, Revert, {base}/revert, method=POST, clear=true"
+        )
+
+    def notify(
+        self,
+        event: Event,
+        message: str,
+        project: str | None = None,
+        decision_id: str | None = None,
+    ) -> bool:
         title = f"[{project}] {event.title}" if project else event.title
+        headers = {"Title": title, "Priority": event.priority, "Tags": event.tags}
+        actions = self._provisional_actions(event, project, decision_id)
+        if actions:
+            headers["X-Actions"] = actions
         request = urllib.request.Request(
-            self.url,
-            data=message.encode(),
-            headers={"Title": title, "Priority": event.priority, "Tags": event.tags},
-            method="POST",
+            self.url, data=message.encode(), headers=headers, method="POST"
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
@@ -54,12 +79,20 @@ class NullNotifier:
     def __init__(self):
         self.events: list[tuple[Event, str, str | None]] = []
 
-    def notify(self, event: Event, message: str, project: str | None = None) -> bool:
+    def notify(
+        self,
+        event: Event,
+        message: str,
+        project: str | None = None,
+        decision_id: str | None = None,
+    ) -> bool:
         self.events.append((event, message, project))
         return True
 
 
 def from_config(config) -> NtfyNotifier | NullNotifier:
     if config.ntfy_topic:
-        return NtfyNotifier(config.ntfy_server, config.ntfy_topic)
+        return NtfyNotifier(
+            config.ntfy_server, config.ntfy_topic, web_base_url=config.web_base_url
+        )
     return NullNotifier()

@@ -273,6 +273,67 @@ def test_list_and_ack_provisional(store, doctrine):
     assert service.ack_provisional(store, "demo", "abc") is False
 
 
+def test_revert_provisional_resets_branch_and_drops_dependents(store, doctrine):
+    project = service.create_project(store, "demo", doctrine_dir=doctrine)
+    repo = ProjectRepo(project.repo_path)
+    tag = repo.tag_checkpoint("cycle-one")  # checkpoint/0001-cycle-one
+    good_head = repo.head_of("agent/work")
+    repo.commit_files({"src/x.py": "x = 1\n"}, branch="agent/work", message="cycle 2 work")
+    assert repo.head_of("agent/work") != good_head
+
+    run = store.load_run("demo")
+    run.transition(RunState.READY)
+    run.provisionals = [
+        {"id": "d2", "summary": "structural guess", "commit": "abc", "checkpoint": tag},
+        {"id": "d1", "summary": "earlier, safe", "commit": "old", "checkpoint": None},
+    ]
+    store.save_run("demo", run)
+
+    head = service.revert_provisional(store, "demo", "d2")
+    assert head == good_head
+    assert repo.head_of("agent/work") == good_head  # branch reset to the recorded tag
+    remaining = [p["id"] for p in store.load_run("demo").provisionals]
+    assert "d2" not in remaining  # the reverted decision is cleared
+    assert "d1" in remaining  # an earlier (pre-checkpoint) decision survives
+
+
+def test_revert_provisional_no_checkpoint_reverts_to_baseline(store, doctrine):
+    project = service.create_project(store, "demo", doctrine_dir=doctrine)
+    repo = ProjectRepo(project.repo_path)
+    design_head = repo.head_of("design/main")
+    repo.commit_files({"src/y.py": "y = 1\n"}, branch="agent/work", message="first-cycle work")
+
+    run = store.load_run("demo")
+    run.transition(RunState.READY)
+    run.provisionals = [{"id": "d1", "summary": "first guess", "commit": "c", "checkpoint": None}]
+    store.save_run("demo", run)
+
+    head = service.revert_provisional(store, "demo", "d1")
+    assert head == design_head  # no prior checkpoint → packet baseline
+    assert store.load_run("demo").provisionals == []
+
+
+def test_revert_provisional_is_idempotent(store, doctrine):
+    service.create_project(store, "demo", doctrine_dir=doctrine)
+    run = store.load_run("demo")
+    run.transition(RunState.READY)
+    store.save_run("demo", run)
+    # nothing by that id — a late double-tap is a harmless no-op, not an error
+    assert service.revert_provisional(store, "demo", "ghost") is None
+
+
+def test_revert_provisional_refused_while_running(store, doctrine):
+    project = service.create_project(store, "demo", doctrine_dir=doctrine)
+    tag = ProjectRepo(project.repo_path).tag_checkpoint("cp")
+    run = store.load_run("demo")
+    run.transition(RunState.READY)
+    run.transition(RunState.RUNNING)
+    run.provisionals = [{"id": "d", "summary": "s", "commit": "c", "checkpoint": tag}]
+    store.save_run("demo", run)
+    with pytest.raises(ValueError, match="cannot revert"):
+        service.revert_provisional(store, "demo", "d")
+
+
 # --- rollback to checkpoint (task 6.5) ---
 
 

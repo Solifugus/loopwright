@@ -48,6 +48,12 @@
                   hx-target="#dashboard" hx-swap="outerHTML">
             Ack
           </button>
+          <button class="ctl ctl-rollback"
+                  hx-post="/projects/{{ project.name }}/provisional/{{ p['id'] }}/revert"
+                  hx-target="#dashboard" hx-swap="outerHTML"
+                  hx-confirm="Revert to {{ p['checkpoint'] or 'the packet baseline' }}? Work after it is discarded.">
+            Revert
+          </button>
         </td>
       </tr>
       {% endfor %}

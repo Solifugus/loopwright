@@ -74,3 +74,41 @@ def test_from_config_selects_by_topic():
     real = from_config(Config(ntfy_topic="loopwright-solifugus"))
     assert isinstance(real, NtfyNotifier)
     assert real.url == "https://ntfy.sh/loopwright-solifugus"
+
+
+# --- provisional ACK/REVERT action buttons (task 9.5) ---
+
+
+def test_provisional_notification_carries_ack_and_revert_actions():
+    notifier = NtfyNotifier("https://ntfy.sh", "t", web_base_url="http://host:8000/")
+    actions = notifier._provisional_actions(Event.PROVISIONAL_DECISION, "demo", "abc")
+    assert "http://host:8000/projects/demo/provisional/abc/ack" in actions
+    assert "http://host:8000/projects/demo/provisional/abc/revert" in actions
+    assert actions.count("method=POST") == 2  # both buttons POST
+    assert "Ack" in actions and "Revert" in actions
+
+
+def test_provisional_actions_attached_as_x_actions_header(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(request, timeout):
+        captured["headers"] = dict(request.headers)
+        return FakeResponse()
+
+    monkeypatch.setattr(ntfy_mod.urllib.request, "urlopen", fake_urlopen)
+    notifier = NtfyNotifier("https://ntfy.sh", "t", web_base_url="http://host:8000")
+    notifier.notify(Event.PROVISIONAL_DECISION, "guessed schema", project="demo", decision_id="xy")
+    # header keys are title-cased by urllib
+    assert "/projects/demo/provisional/xy/ack" in captured["headers"]["X-actions"]
+
+
+def test_non_provisional_events_carry_no_actions():
+    notifier = NtfyNotifier("https://ntfy.sh", "t", web_base_url="http://host:8000")
+    assert notifier._provisional_actions(Event.CHECKPOINT_PASSED, "demo", "abc") is None
+
+
+def test_provisional_actions_need_web_base_url_and_id():
+    notifier = NtfyNotifier("https://ntfy.sh", "t")  # no web_base_url
+    assert notifier._provisional_actions(Event.PROVISIONAL_DECISION, "demo", "abc") is None
+    with_url = NtfyNotifier("https://ntfy.sh", "t", web_base_url="http://h")
+    assert with_url._provisional_actions(Event.PROVISIONAL_DECISION, "demo", None) is None

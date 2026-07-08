@@ -75,6 +75,11 @@ def build_parser() -> argparse.ArgumentParser:
     prov_ack = prov_sub.add_parser("ack", help="acknowledge a provisional decision")
     prov_ack.add_argument("project")
     prov_ack.add_argument("decision_id")
+    prov_revert = prov_sub.add_parser(
+        "revert", help="revert a provisional decision to its pre-checkpoint"
+    )
+    prov_revert.add_argument("project")
+    prov_revert.add_argument("decision_id")
 
     serve_parser = subparsers.add_parser("serve", help="run the web UI")
     serve_parser.add_argument("--host", default="127.0.0.1")
@@ -266,6 +271,7 @@ def cmd_provisional(args) -> int:
     from loopwright import service
     from loopwright.core.config import load_config
     from loopwright.core.model import ProjectStore
+    from loopwright.gitctl.repo import GitError
 
     config = load_config()
     store = ProjectStore(config.projects_dir)
@@ -278,13 +284,24 @@ def cmd_provisional(args) -> int:
             for entry in entries:
                 print(f"{entry['id']}  {entry['summary']}  (checkpoint: {entry.get('checkpoint')})")
             return 0
-        if service.ack_provisional(store, args.project, args.decision_id):
-            print(f"acked provisional {args.decision_id}")
+        if args.provisional_command == "ack":
+            if service.ack_provisional(store, args.project, args.decision_id):
+                print(f"acked provisional {args.decision_id}")
+                return 0
+            print(f"no provisional {args.decision_id!r} to ack (already handled?)")
             return 0
-        print(f"no provisional {args.decision_id!r} to ack (already handled?)")
+        # revert
+        head = service.revert_provisional(store, args.project, args.decision_id)
+        if head is None:
+            print(f"no provisional {args.decision_id!r} to revert (already handled?)")
+            return 0
+        print(f"reverted provisional {args.decision_id}; agent/work now at {head[:10]}")
         return 0
     except FileNotFoundError:
         print(f"error: no project named {args.project!r}")
+        return 1
+    except (ValueError, GitError) as exc:
+        print(f"error: {exc}")
         return 1
 
 

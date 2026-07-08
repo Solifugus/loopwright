@@ -344,6 +344,29 @@ def test_provisional_shown_and_ack_route_removes_it(store, client, doctrine):
     assert client.post("/projects/demo/provisional/abc/ack").status_code == 200
 
 
+def test_provisional_revert_route_resets_branch_and_is_idempotent(store, client, doctrine):
+    project = service.create_project(store, "demo", doctrine_dir=doctrine)
+    repo = ProjectRepo(project.repo_path)
+    tag = repo.tag_checkpoint("cp")
+    good = repo.head_of("agent/work")
+    repo.commit_files({"a.py": "a = 1\n"}, branch="agent/work", message="later work")
+
+    run = store.load_run("demo")
+    run.transition(RunState.READY)
+    run.provisionals = [{"id": "z", "summary": "guess", "commit": "c", "checkpoint": tag}]
+    store.save_run("demo", run)
+
+    # the dashboard offers a Revert button
+    assert "Revert" in client.get("/projects/demo/dashboard").text
+
+    response = client.post("/projects/demo/provisional/z/revert")
+    assert response.status_code == 200
+    assert repo.head_of("agent/work") == good  # branch reset to the recorded tag
+    assert store.load_run("demo").provisionals == []
+    # double-tap harmless
+    assert client.post("/projects/demo/provisional/z/revert").status_code == 200
+
+
 # --- log viewer (task 5.4) ---
 
 

@@ -41,6 +41,9 @@ class Config:
     )
     ntfy_server: str = "https://ntfy.sh"
     ntfy_topic: str | None = None
+    # Public base URL of the Loopwright web UI, reachable from your phone; used
+    # to build ACK/REVERT action buttons on provisional notifications.
+    web_base_url: str | None = None
     openai_api_key_env: str = "OPENAI_API_KEY"
     openai_model: str = "gpt-4o"
     limit_resume_minutes: int = 30  # auto-resume delay after a usage-limit pause
@@ -104,9 +107,9 @@ def load_config(path: Path | str | None = None) -> Config:
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ConfigError(f"{resolved}: {key} must be a non-negative integer")
             kwargs[key] = value
-        elif key == "ntfy_topic":
+        elif key in ("ntfy_topic", "web_base_url"):
             if value is not None and (not isinstance(value, str) or not value):
-                raise ConfigError(f"{resolved}: ntfy_topic must be a non-empty string or null")
+                raise ConfigError(f"{resolved}: {key} must be a non-empty string or null")
             kwargs[key] = value
         else:
             if not isinstance(value, str) or not value:

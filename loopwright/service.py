@@ -17,7 +17,13 @@ from loopwright.core.model import (
     RunState,
 )
 from loopwright.core.runlog import RunLog
-from loopwright.gitctl.repo import WORK_BRANCH, GitError, ProjectRepo
+from loopwright.gitctl.repo import (
+    CHECKPOINT_RE,
+    DESIGN_BRANCH,
+    WORK_BRANCH,
+    GitError,
+    ProjectRepo,
+)
 from loopwright.notify.ntfy import Event
 
 PACKET_FILES = ("DESIGN.md", "DEVPLAN.md", "TESTPLAN.md")
@@ -213,8 +219,26 @@ ROLLBACK_STATES = frozenset(
 )
 
 
+def _checkpoint_number(tag: str | None) -> int:
+    """The NNNN of a checkpoint tag, or -1 for None/unparseable (earliest)."""
+    match = CHECKPOINT_RE.match(tag) if tag else None
+    return int(match.group(1)) if match else -1
+
+
+def _provisionals_before(provisionals: list[dict], tag: str | None) -> list[dict]:
+    """Keep provisionals recorded before ``tag``; drop those at or after it.
+
+    A provisional's recorded ``checkpoint`` is the one preceding its commit, so
+    an entry whose checkpoint number is >= the rollback target came from work
+    the rollback discards. A None target (revert to the packet baseline) drops
+    every provisional.
+    """
+    threshold = _checkpoint_number(tag)
+    return [p for p in provisionals if _checkpoint_number(p.get("checkpoint")) < threshold]
+
+
 def rollback_to_checkpoint(store: ProjectStore, name: str, tag: str) -> str:
-    """Rewind agent/work to a checkpoint tag; clears recorded step results."""
+    """Rewind agent/work to a checkpoint tag; clear steps and dependent provisionals."""
     project = store.load_project(name)
     run = store.load_run(name)
     if run.state not in ROLLBACK_STATES:
@@ -224,9 +248,41 @@ def rollback_to_checkpoint(store: ProjectStore, name: str, tag: str) -> str:
         raise ValueError(f"unknown checkpoint {tag!r}")
     repo.reset_branch(WORK_BRANCH, tag)
     run.steps = []
+    run.provisionals = _provisionals_before(run.provisionals, tag)
     store.save_run(name, run)
     head = repo.head_of(WORK_BRANCH)
     run_log(store, name).log("rollback", f"agent/work rewound to {tag} ({head[:10]})")
+    return head
+
+
+def revert_provisional(store: ProjectStore, name: str, decision_id: str) -> str | None:
+    """Undo a PROVISIONAL decision: roll agent/work back to the checkpoint tagged
+    immediately before its commit and drop it (and later provisionals).
+
+    Idempotent: reverting an already-handled decision is a logged no-op — phone
+    taps arrive late and twice. A decision with no preceding checkpoint reverts
+    to the approved packet baseline (design/main).
+    """
+    project = store.load_project(name)
+    run = store.load_run(name)
+    entry = next((p for p in run.provisionals if p["id"] == decision_id), None)
+    if entry is None:
+        run_log(store, name).log("provisional", f"revert {decision_id}: already handled; no-op")
+        return None
+    if run.state not in ROLLBACK_STATES:
+        raise ValueError(f"cannot revert while the run is {run.state.value}")
+    repo = ProjectRepo(project.repo_path)
+    tag = entry.get("checkpoint")
+    if tag is not None and tag not in repo.checkpoints():
+        raise ValueError(f"unknown checkpoint {tag!r}")
+    repo.reset_branch(WORK_BRANCH, tag if tag is not None else DESIGN_BRANCH)
+    run.steps = []
+    run.provisionals = _provisionals_before(run.provisionals, tag)
+    store.save_run(name, run)
+    head = repo.head_of(WORK_BRANCH)
+    run_log(store, name).log(
+        "provisional", f"reverted {decision_id} to {tag or 'design/main'} ({head[:10]})"
+    )
     return head
 
 
