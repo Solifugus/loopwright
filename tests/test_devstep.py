@@ -264,16 +264,45 @@ def test_compose_prompt_mentions_project_and_marker():
 
 
 @pytest.mark.parametrize(
-    ("text", "expected"),
+    ("text", "exit_code", "expected"),
     [
-        ("Claude AI usage limit reached|123456", True),
-        ("You have hit your RATE LIMIT", True),
-        ("rate_limit_error from API", True),
-        ("quota exceeded for the day", True),
-        ("implemented rate limiting middleware... just kidding, all good", True),
-        ("Task 1 complete, tests pass", False),
-        ("", False),
+        # the CLI's structured banner is decisive on its own, any exit
+        ("Claude AI usage limit reached|123456", 1, True),
+        ("Claude AI usage limit reached|123456", 0, True),
+        # generic mentions count only when paired with a nonzero exit
+        ("You have hit your RATE LIMIT", 1, True),
+        ("rate_limit_error from API", 1, True),
+        ("quota exceeded for the day", 1, True),
+        # 9.6: a project *about* rate limits exiting cleanly must NOT park the run
+        ("implemented rate limiting middleware... just kidding, all good", 0, False),
+        ("test_rate_limit_retry PASSED", 0, False),
+        ("applying rate limit backoff", 0, False),
+        ("Task 1 complete, tests pass", 0, False),
+        ("", 0, False),
     ],
 )
-def test_is_usage_limit(text, expected):
-    assert is_usage_limit(text) is expected
+def test_is_usage_limit(text, exit_code, expected):
+    assert is_usage_limit(text, exit_code) is expected
+
+
+def test_usage_limit_ignores_rate_limit_chatter_on_clean_exit():
+    """A project whose own output discusses rate limits, exiting 0, is not a limit."""
+    output = (
+        "Running suite...\n"
+        "test_rate_limit_retry PASSED\n"
+        "applying rate limit backoff\n"
+        + "".join(f"case {i} ok\n" for i in range(20))
+        + "All 42 tests passed\nTask 3 complete\n"
+    )
+    assert is_usage_limit(output, 0) is False
+
+
+def test_usage_limit_detects_genuine_tail_banner():
+    output = "...\nfinished implementing\n...\nClaude AI usage limit reached|1751900000\n"
+    assert is_usage_limit(output, 1) is True
+
+
+def test_usage_limit_only_scans_the_tail():
+    """A limit-looking line far above the tail is ignored, even on a nonzero exit."""
+    output = "rate limit reached\n" + "".join(f"line {i}\n" for i in range(20)) + "done\n"
+    assert is_usage_limit(output, 1) is False

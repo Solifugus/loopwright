@@ -262,7 +262,7 @@ with fakes. Tasks marked `(needs: …)` must wait for the named task.
   correct URLs; the revert route resets the branch to the recorded tag
   and clears dependent provisionals; double-taps are harmless.
 
-- [ ] **9.6 Usage-limit detection that survives projects about rate
+- [x] **9.6 Usage-limit detection that survives projects about rate
   limits.** Replace the whole-output substring scan in
   `is_usage_limit()`: scan only the final 10 lines of combined output,
   and treat a marker as decisive only when paired with a nonzero exit
@@ -300,6 +300,6 @@ attention to mechanism.
 | 6 — Orchestrator    | 5     | 5    |
 | 7 — Primary Agent   | 1     | 1    |
 | 8 — Finalization    | 3     | 3    |
-| 9 - Trust Hardening | 7     | 6    |
+| 9 - Trust Hardening | 7     | 7    |
 
 Update checkboxes and this table in the same commit as the work.

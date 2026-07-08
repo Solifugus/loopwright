@@ -32,9 +32,16 @@ from loopwright.vmctl.vm import LibvirtVM
 
 ALL_DONE_MARKER = "ALL TASKS COMPLETE"
 
-# Substrings (lowercased) that mean the worker ran out of AI usage rather
-# than genuinely failing.
+# Generic phrases (lowercased) that *mention* usage/rate limits. Decisive only
+# when paired with a nonzero exit, since a project's own output may legitimately
+# discuss rate limiting (a passing "test_rate_limit_retry", a backoff log line).
 LIMIT_MARKERS = ("usage limit", "rate limit", "rate_limit", "quota exceeded")
+# The worker CLI's own structured limit banner — decisive on its own, even on a
+# zero exit, because it is emitted by the CLI, not by the project under test.
+STRUCTURED_LIMIT_MARKERS = ("claude ai usage limit reached",)
+# How many trailing lines of output to consider; a genuine limit banner is the
+# last thing the CLI prints, so scanning the tail avoids mid-run false hits.
+LIMIT_SCAN_LINES = 10
 
 # Mechanics only. This prompt points at the doctrine; it never restates it —
 # the authoritative rules live once, in the doctrine repo (task 9.3). The
@@ -63,9 +70,18 @@ def compose_prompt(project: str, branch: str = WORK_BRANCH) -> str:
     return PROMPT_TEMPLATE.format(project=project, branch=branch, all_done=ALL_DONE_MARKER)
 
 
-def is_usage_limit(output: str) -> bool:
-    lowered = output.lower()
-    return any(marker in lowered for marker in LIMIT_MARKERS)
+def is_usage_limit(output: str, exit_code: int) -> bool:
+    """Did the worker stop because it ran out of AI usage (vs. genuinely failing)?
+
+    Only the tail of the output is scanned. The CLI's structured limit banner is
+    decisive on its own; a generic limit *mention* counts only when paired with a
+    nonzero exit, so a project whose output discusses rate limiting on a clean
+    run never parks the loop.
+    """
+    tail = "\n".join(output.splitlines()[-LIMIT_SCAN_LINES:]).lower()
+    if any(marker in tail for marker in STRUCTURED_LIMIT_MARKERS):
+        return True
+    return exit_code != 0 and any(marker in tail for marker in LIMIT_MARKERS)
 
 
 def default_worker_command(work_dir: str, prompt: str) -> str:
@@ -196,7 +212,7 @@ class DeveloperVMStep:
         output = (result.stdout or "") + (result.stderr or "")
         tail = output[-1500:]
 
-        if is_usage_limit(output):
+        if is_usage_limit(output, result.exit_code):
             raise UsageLimitReached("worker agent hit its usage limit")
         if not result.ok:
             raise StepFailed(f"worker agent exited with {result.exit_code}: {tail[-300:]}")
