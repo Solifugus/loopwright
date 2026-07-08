@@ -64,6 +64,55 @@ def test_deferred_annotation_on_unchecked_is_legal(repo):
     assert fetchgate.inspect_range(repo, before, after).ok
 
 
+def test_inserted_task_reusing_existing_id_rejected(repo):
+    before = repo.head_of("agent/work")  # tasks 1 and 2 exist
+    after = commit(
+        repo,
+        {"DEVPLAN.md": "- [ ] 1. say hello\n- [ ] 2. say goodbye\n- [ ] 2. sneaky dupe\n"},
+    )
+    verdict = fetchgate.inspect_range(repo, before, after)
+    assert not verdict.ok
+    assert "DEVPLAN.md" in verdict.offending_files
+
+
+def test_fresh_id_append_passes(repo):
+    before = repo.head_of("agent/work")
+    after = commit(
+        repo,
+        {"DEVPLAN.md": "- [ ] 1. say hello\n- [ ] 2. say goodbye\n- [ ] 3. brand new\n"},
+    )
+    assert fetchgate.inspect_range(repo, before, after).ok
+
+
+def test_mid_file_insert_with_fresh_id_is_legal(repo):
+    """Position is not constrained — only ID uniqueness (and no delete/reorder)."""
+    before = repo.head_of("agent/work")
+    after = commit(
+        repo,
+        {"DEVPLAN.md": "- [ ] 1. say hello\n- [ ] 3. inserted mid\n- [ ] 2. say goodbye\n"},
+    )
+    assert fetchgate.inspect_range(repo, before, after).ok
+
+
+def test_dotted_task_id_reuse_rejected(repo):
+    initial = repo.head_of("agent/work")
+    # append a fresh dotted-ID task legally (9.1 not among {1, 2})
+    seeded = commit(
+        repo,
+        {"DEVPLAN.md": "- [ ] 1. say hello\n- [ ] 2. say goodbye\n- [ ] **9.1 first**\n"},
+    )
+    assert fetchgate.inspect_range(repo, initial, seeded).ok
+    before = seeded
+    after = commit(
+        repo,
+        {
+            "DEVPLAN.md": "- [ ] 1. say hello\n- [ ] 2. say goodbye\n"
+            "- [ ] **9.1 first**\n- [ ] **9.1 dupe**\n"
+        },
+    )
+    assert not fetchgate.inspect_range(repo, before, after).ok
+
+
 @pytest.mark.parametrize("protected", ["DESIGN.md", "PRINCIPLES.md", "AGENT_RULES.md"])
 def test_protected_file_rejected(repo, protected):
     before = repo.head_of("agent/work")

@@ -187,6 +187,15 @@ with fakes. Tasks marked `(needs: …)` must wait for the named task.
   the branch ref restored; a DEVPLAN task deletion is rejected; a legal
   push (code + tick + appended task) passes untouched.
 
+- [x] **9.1a Fetch-gate task-ID uniqueness.** `(needs: 9.1)` Extend the
+  fetch-gate's DEVPLAN inspection so any *inserted* task must carry a stable
+  ID not already present in the before-version; reject a push that reuses an
+  existing task ID (it would corrupt the `(needs:)`/rollback contract).
+  Mid-file inserts of fresh-ID tasks stay legal — only ID uniqueness (plus
+  9.1's no-deletion/no-reorder/no-checked-edit rules) is enforced.
+  *Done when:* a pushed task reusing an existing ID is rejected; a fresh-ID
+  append passes.
+
 - [x] **9.2 Independent verification step — the worker's word is not
   evidence.** New engine step `verify-tests` between `dev-code` and
   `deploy-test`, built like `DeploymentVMStep` (injected vm/ssh/repo
@@ -291,6 +300,6 @@ attention to mechanism.
 | 6 — Orchestrator    | 5     | 5    |
 | 7 — Primary Agent   | 1     | 1    |
 | 8 — Finalization    | 3     | 3    |
-| 9 - Trust Hardening | 6     | 2    |
+| 9 - Trust Hardening | 7     | 3    |
 
 Update checkboxes and this table in the same commit as the work.
