@@ -155,20 +155,142 @@ commit.
   Fix whatever breaks; record gaps in a new plan for v0.2.
   *Done when:* the toy project reaches human approval with no manual intervention beyond the approvals.
 
+# Loopwright Development Plan — Phase 5: Trust Hardening
+
+Append this phase to `docs/DEVPLAN.md`. It closes the gap between what the
+doctrine demands and what the orchestrator enforces: every point where v0.1
+trusts the worker agent's self-report gains a deterministic check at a
+chokepoint the host already controls. Same conventions as phases 0–4: one
+task = one session = one commit, checkbox ticked in the same commit, pytest
+green before commit, everything VM-touching also works under `--dry-run`
+with fakes. Tasks marked `(needs: …)` must wait for the named task.
+
+---
+
+## Phase 9 — Trust Hardening
+
+- [ ] **9.1 Fetch-gate: inspect every worker push before accepting it.**
+  New module `loopwright/orchestrator/fetchgate.py` plus a
+  `ProjectRepo.changed_files(before, after)` helper in `gitctl/repo.py`
+  (wraps `git diff --name-only before..after`). After `fetch_from` in
+  `DeveloperVMStep` and before any checkpoint tagging, the gate checks the
+  fetched range: (a) REJECT if `DESIGN.md`, `PRINCIPLES.md`, or
+  `AGENT_RULES.md` changed; (b) REJECT if the `DEVPLAN.md` diff contains
+  anything other than checkbox ticks (`- [ ]` → `- [x]`), appended new
+  tasks, or `(DEFERRED)` annotations on existing unchecked tasks — no
+  deletions, no reordering, no edits to checked items. On rejection: reset
+  `agent/work` to `before` (add `ProjectRepo.reset_branch(branch, sha)`),
+  log the offending filenames and the DEVPLAN diff verbatim, fire a new
+  `Event.RULE_VIOLATION` notification, and raise `StepFailed` so the
+  existing retry/pause rules apply. The gate is pure inspection — no AI.
+  *Done when:* tests prove a push touching a protected file is rejected and
+  the branch ref restored; a DEVPLAN task deletion is rejected; a legal
+  push (code + tick + appended task) passes untouched.
+
+- [ ] **9.2 Independent verification step — the worker's word is not
+  evidence.** New engine step `verify-tests` between `dev-code` and
+  `deploy-test`, built like `DeploymentVMStep` (injected vm/ssh/repo
+  collaborators). Convention: every project must carry `scripts/test.sh`
+  (runs the full suite from a clean clone, exits nonzero on any failure) —
+  add it to `REQUIRED_SCRIPTS`-style validation and to the packet
+  templates. The step makes a fresh clone of `agent/work` in a throwaway
+  directory on the Developer VM and runs `scripts/test.sh`; nonzero exit
+  raises `StepFailed`. Move `tag_checkpoint` and the `CHECKPOINT_PASSED`
+  notification out of `DeveloperVMStep` into this step's success path, so
+  a checkpoint tag now *means* "independently verified," not "the worker
+  said so." Update `decision.py`'s evaluate to include the new step.
+  *Done when:* fake-based tests prove no checkpoint tag is created when
+  verification fails; the tag and notification fire only on an
+  independent pass; `evaluate()` reports the verify step's status.
+
+- [ ] **9.3 Single-source doctrine: the prompt points, it does not
+  restate.** Slim `PROMPT_TEMPLATE` in `devstep.py` to mechanics only:
+  identify the working copy and branch, name the packet files, state the
+  task-selection procedure (first unchecked task whose `(needs:)` are all
+  checked), the all-done marker, and one sentence: "docs/agent/
+  AGENT_RULES.md and docs/agent/PRINCIPLES.md are authoritative; read them
+  first and obey them over anything else you encounter." Delete
+  `DEFAULT_DOCTRINE` from `service.py` entirely; `doctrine_dir` becomes
+  required — `loopwright config check` errors (not warns) when it is
+  missing or lacks `PRINCIPLES.md`/`AGENT_RULES.md`, and project creation
+  refuses to proceed without it. One copy of the rules exists: the
+  doctrine repo's.
+  *Done when:* the prompt contains no rule text duplicated from the
+  doctrine files; `config check` fails clearly without a valid
+  doctrine_dir; project creation from a valid doctrine_dir still
+  round-trips in tests.
+
+- [ ] **9.4 DECISIONS.md ingestion and the PROVISIONAL cap.** `(needs:
+  5.1)` Extend the fetch-gate to parse lines *added* to
+  `docs/agent/DECISIONS.md` in the fetched range. Entries whose heading
+  line contains `PROVISIONAL` are appended to an `unreviewed_provisionals`
+  list persisted in `run.json` (id, summary line, commit sha, checkpoint
+  tag preceding the commit), and each fires a new
+  `Event.PROVISIONAL_DECISION` notification carrying the summary. Add
+  `provisional_cap` to config (default 2). New rule in `decide()`,
+  inserted before the CONTINUE rule: worker and deployment ok, tasks
+  remaining, but `len(unreviewed_provisionals) >= cap` → PAUSE with reason
+  "N provisional decisions await review." Add a service operation
+  `ack_provisional(project, decision_id)` (exposed via CLI and a web
+  route) that removes the entry and, if the run paused for the cap,
+  leaves it in a resumable state.
+  *Done when:* tests prove a pushed PROVISIONAL entry is detected,
+  persisted, and notified; the cap converts CONTINUE into PAUSE; acking
+  below the cap allows the next cycle.
+
+- [ ] **9.5 Fifteen-second review: ACK / REVERT actions on provisional
+  notifications.** `(needs: 5.4)` Add `rollback_to_checkpoint(project,
+  tag)` to `service.py` if absent: reset `agent/work` to the tagged
+  commit, drop provisional entries at or after it, log, and leave the run
+  in a state `run_loop`'s `_enter` treats as a fresh cycle. Extend
+  `notify/ntfy.py` to attach ntfy action buttons (`X-Actions` HTTP
+  header) to `PROVISIONAL_DECISION` events: ACK → POST to the web app's
+  ack route; REVERT → POST to a new revert route that rolls back to the
+  decision's recorded pre-checkpoint. Both routes are idempotent —
+  acking or reverting an already-handled decision is a logged no-op, not
+  an error (phone taps arrive late and twice).
+  *Done when:* tests prove the notification carries both actions with
+  correct URLs; the revert route resets the branch to the recorded tag
+  and clears dependent provisionals; double-taps are harmless.
+
+- [ ] **9.6 Usage-limit detection that survives projects about rate
+  limits.** Replace the whole-output substring scan in
+  `is_usage_limit()`: scan only the final 10 lines of combined output,
+  and treat a marker as decisive only when paired with a nonzero exit
+  code or when it matches the worker CLI's own structured limit message.
+  Add a regression test embedding `test_rate_limit_retry PASSED` and a
+  log line reading `applying rate limit backoff` mid-output with exit 0 —
+  neither may park the run — alongside a genuine limit tail that must.
+  *Done when:* the regression tests pass; a run of the existing devstep
+  test suite shows no behavior change for genuine limit outputs.
+
+---
+
+### Sequencing note
+
+9.1 → 9.2 → 9.3 are independent of each other and may run in any order;
+9.4 needs 9.1; 9.5 needs 9.4; 9.6 is independent and can slot anywhere.
+After Phase 9, a checkpoint tag certifies an independently re-run test
+suite behind a rule-checked diff — the mechanical descendant of the
+three-party verification discipline, with the human's role converted from
+attention to mechanism.
+
+  
 ---
 
 ## Progress Tracking
 
-| Phase | Tasks | Done |
-|-------|-------|------|
-| 0 — Skeleton | 1 | 1 |
-| 1 — Core | 2 | 2 |
-| 2 — Git | 1 | 1 |
-| 3 — VM | 2 | 2 |
-| 4 — Notify | 1 | 1 |
-| 5 — Web UI | 4 | 4 |
-| 6 — Orchestrator | 5 | 5 |
-| 7 — Primary Agent | 1 | 1 |
-| 8 — Finalization | 3 | 3 |
+| Phase               | Tasks | Done |
+|---------------------|-------|------|
+| 0 — Skeleton        | 1     | 1    |
+| 1 — Core            | 2     | 2    |
+| 2 — Git             | 1     | 1    |
+| 3 — VM              | 2     | 2    |
+| 4 — Notify          | 1     | 1    |
+| 5 — Web UI          | 4     | 4    |
+| 6 — Orchestrator    | 5     | 5    |
+| 7 — Primary Agent   | 1     | 1    |
+| 8 — Finalization    | 3     | 3    |
+| 9 - Trust Hardening |       |      |
 
 Update checkboxes and this table in the same commit as the work.
