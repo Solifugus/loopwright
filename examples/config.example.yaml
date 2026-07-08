@@ -4,8 +4,10 @@
 
 projects_dir: ~/development/loopwright/projects
 
-# Clone of github.com/Solifugus/loopwright-doctrine; new projects are
-# pre-populated from its templates and carry its PRINCIPLES.md/AGENT_RULES.md.
+# REQUIRED. Clone of github.com/Solifugus/loopwright-doctrine; it must contain
+# PRINCIPLES.md and AGENT_RULES.md. New projects are pre-populated from its
+# templates and carry those files under docs/agent/. Project creation refuses
+# to proceed without a valid doctrine_dir (`loopwright config check` errors).
 doctrine_dir: ~/development/loopwright-doctrine
 
 libvirt_uri: qemu:///system

@@ -13,6 +13,16 @@ def store(tmp_path):
     return ProjectStore(tmp_path / "projects")
 
 
+@pytest.fixture
+def doctrine(tmp_path):
+    """A minimal valid doctrine dir (the two files create_project requires)."""
+    base = tmp_path / "doctrine"
+    base.mkdir()
+    (base / "PRINCIPLES.md").write_text("# Real Principles\n")
+    (base / "AGENT_RULES.md").write_text("# Real Rules\n")
+    return base
+
+
 def repo_file(repo_path, ref, name) -> str:
     return subprocess.run(
         ["git", "-C", str(repo_path), "show", f"{ref}:{name}"],
@@ -22,8 +32,8 @@ def repo_file(repo_path, ref, name) -> str:
     ).stdout
 
 
-def test_create_project_builds_store_packet_and_repo(store):
-    project = service.create_project(store, "demo")
+def test_create_project_builds_store_packet_and_repo(store, doctrine):
+    project = service.create_project(store, "demo", doctrine_dir=doctrine)
     assert (store.project_dir("demo") / "project.yaml").is_file()
     for filename in service.PACKET_FILES:
         assert (service.packet_dir(store, "demo") / filename).is_file()
@@ -32,29 +42,29 @@ def test_create_project_builds_store_packet_and_repo(store):
     assert "demo — Design" in repo_file(project.repo_path, "design/main", "DESIGN.md")
 
 
-def test_create_project_cleans_up_on_git_failure(store, monkeypatch):
+def test_create_project_cleans_up_on_git_failure(store, doctrine, monkeypatch):
     def boom(*args, **kwargs):
         raise GitError("simulated git failure")
 
     monkeypatch.setattr(ProjectRepo, "init", boom)
     with pytest.raises(GitError):
-        service.create_project(store, "demo")
+        service.create_project(store, "demo", doctrine_dir=doctrine)
     assert not store.project_dir("demo").exists()
 
     monkeypatch.undo()
-    service.create_project(store, "demo")  # retry after failure must work
+    service.create_project(store, "demo", doctrine_dir=doctrine)  # retry must work
 
 
-def test_save_and_load_packet_roundtrip(store):
-    service.create_project(store, "demo")
+def test_save_and_load_packet_roundtrip(store, doctrine):
+    service.create_project(store, "demo", doctrine_dir=doctrine)
     service.save_packet(store, "demo", {"DESIGN.md": "# new design\n"})
     files = service.load_packet(store, "demo")
     assert files["DESIGN.md"] == "# new design\n"
     assert "Development Plan" in files["DEVPLAN.md"]  # untouched files keep their content
 
 
-def test_approve_packet_commits_and_moves_to_ready(store):
-    project = service.create_project(store, "demo")
+def test_approve_packet_commits_and_moves_to_ready(store, doctrine):
+    project = service.create_project(store, "demo", doctrine_dir=doctrine)
     service.save_packet(store, "demo", {"DESIGN.md": "# approved design\n"})
     before = ProjectRepo(project.repo_path).head_of("design/main")
 
@@ -65,8 +75,8 @@ def test_approve_packet_commits_and_moves_to_ready(store):
     assert repo_file(project.repo_path, "design/main", "DESIGN.md") == "# approved design\n"
 
 
-def test_reapprove_while_ready_commits_again(store):
-    project = service.create_project(store, "demo")
+def test_reapprove_while_ready_commits_again(store, doctrine):
+    project = service.create_project(store, "demo", doctrine_dir=doctrine)
     first = service.approve_packet(store, "demo")
     service.save_packet(store, "demo", {"DESIGN.md": "# v2\n"})
     second = service.approve_packet(store, "demo")
@@ -75,8 +85,8 @@ def test_reapprove_while_ready_commits_again(store):
     assert repo_file(project.repo_path, "design/main", "DESIGN.md") == "# v2\n"
 
 
-def test_approve_rejected_outside_draft_and_ready(store):
-    service.create_project(store, "demo")
+def test_approve_rejected_outside_draft_and_ready(store, doctrine):
+    service.create_project(store, "demo", doctrine_dir=doctrine)
     run = store.load_run("demo")
     run.transition(RunState.READY)
     run.transition(RunState.RUNNING)
@@ -164,8 +174,8 @@ def test_list_checkpoints_without_repo_is_empty(store):
     assert service.list_checkpoints(store, "demo") == []
 
 
-def test_list_checkpoints_returns_tags(store):
-    project = service.create_project(store, "demo")
+def test_list_checkpoints_returns_tags(store, doctrine):
+    project = service.create_project(store, "demo", doctrine_dir=doctrine)
     repo = ProjectRepo(project.repo_path)
     repo.tag_checkpoint("first")
     repo.tag_checkpoint("second")
@@ -175,12 +185,12 @@ def test_list_checkpoints_returns_tags(store):
     ]
 
 
-# --- doctrine and templates (task 8.1) ---
+# --- doctrine and templates (tasks 8.1, 9.3) ---
 
 
 @pytest.fixture
-def doctrine(tmp_path):
-    base = tmp_path / "doctrine"
+def doctrine_with_templates(tmp_path):
+    base = tmp_path / "doctrine-t"
     (base / "templates").mkdir(parents=True)
     (base / "PRINCIPLES.md").write_text("# Real Principles\n")
     (base / "AGENT_RULES.md").write_text("# Real Rules\n")
@@ -190,45 +200,63 @@ def doctrine(tmp_path):
     return base
 
 
-def test_create_project_uses_doctrine_templates(store, doctrine):
-    project = service.create_project(store, "demo", doctrine_dir=doctrine)
+def test_create_project_uses_doctrine_templates(store, doctrine_with_templates):
+    project = service.create_project(store, "demo", doctrine_dir=doctrine_with_templates)
     drafts = service.load_packet(store, "demo")
     assert drafts["DESIGN.md"] == "# demo design from doctrine\n"  # placeholder substituted
     assert "- [ ] 1. start" in drafts["DEVPLAN.md"]
 
+    # 9.3: canonical doctrine lands under docs/agent/ so the prompt can point at it.
     repo = ProjectRepo(project.repo_path)
-    assert repo_file(project.repo_path, "design/main", "PRINCIPLES.md") == "# Real Principles\n"
-    assert repo_file(project.repo_path, "design/main", "AGENT_RULES.md") == "# Real Rules\n"
-    assert repo.has_file("agent/work", "AGENT_RULES.md")  # doctrine reaches worker clones
+    assert (
+        repo_file(project.repo_path, "design/main", "docs/agent/PRINCIPLES.md")
+        == "# Real Principles\n"
+    )
+    assert (
+        repo_file(project.repo_path, "design/main", "docs/agent/AGENT_RULES.md")
+        == "# Real Rules\n"
+    )
+    assert repo.has_file("agent/work", "docs/agent/AGENT_RULES.md")  # reaches worker clones
 
 
-def test_create_project_without_doctrine_uses_builtins(store):
-    project = service.create_project(store, "demo")
-    principles = repo_file(project.repo_path, "design/main", "PRINCIPLES.md")
-    assert "boring dependencies" in principles
-    rules = repo_file(project.repo_path, "design/main", "AGENT_RULES.md")
-    assert "Never" in rules
+def test_create_project_requires_doctrine_dir(store):
+    # 9.3: no built-in fallback — creation refuses to proceed without doctrine.
+    with pytest.raises(ValueError, match="doctrine_dir is required"):
+        service.create_project(store, "demo", doctrine_dir=None)
+    assert not store.project_dir("demo").exists()  # nothing left behind
 
 
-def test_partial_doctrine_falls_back_per_file(store, tmp_path):
+def test_create_project_refuses_incomplete_doctrine(store, tmp_path):
     base = tmp_path / "doctrine"
     (base / "templates").mkdir(parents=True)
-    (base / "templates" / "DESIGN.md").write_text("# {{PROJECT}} custom design\n")
-    # no PRINCIPLES/AGENT_RULES, no other templates
+    (base / "PRINCIPLES.md").write_text("# only principles\n")  # AGENT_RULES.md missing
 
-    project = service.create_project(store, "demo", doctrine_dir=base)
+    with pytest.raises(ValueError, match="missing AGENT_RULES.md"):
+        service.create_project(store, "demo", doctrine_dir=base)
+    assert not store.project_dir("demo").exists()
+
+
+def test_templates_still_fall_back_per_file(store, tmp_path):
+    """Doctrine is mandatory, but missing *template* files still use built-ins."""
+    base = tmp_path / "doctrine"
+    base.mkdir()
+    (base / "PRINCIPLES.md").write_text("# p\n")
+    (base / "AGENT_RULES.md").write_text("# r\n")
+    (base / "templates").mkdir()
+    (base / "templates" / "DESIGN.md").write_text("# {{PROJECT}} custom design\n")
+
+    service.create_project(store, "demo", doctrine_dir=base)
     drafts = service.load_packet(store, "demo")
     assert drafts["DESIGN.md"] == "# demo custom design\n"
-    assert "Development Plan" in drafts["DEVPLAN.md"]  # built-in fallback
-    assert "boring dependencies" in repo_file(project.repo_path, "design/main", "PRINCIPLES.md")
+    assert "Development Plan" in drafts["DEVPLAN.md"]  # built-in template fallback
 
 
 # --- rollback to checkpoint (task 6.5) ---
 
 
-def rollback_env(store):
+def rollback_env(store, doctrine):
     """Project in READY with a checkpoint, then agent/work advanced past it."""
-    project = service.create_project(store, "demo")
+    project = service.create_project(store, "demo", doctrine_dir=doctrine)
     run = store.load_run("demo")
     run.transition(RunState.READY)
     run.record_step("dev-code", "ok", "t", {"checkpoint": "x"})
@@ -242,8 +270,8 @@ def rollback_env(store):
     return repo, tag, old_head
 
 
-def test_rollback_rewinds_agent_work_and_clears_steps(store):
-    repo, tag, old_head = rollback_env(store)
+def test_rollback_rewinds_agent_work_and_clears_steps(store, doctrine):
+    repo, tag, old_head = rollback_env(store, doctrine)
     head = service.rollback_to_checkpoint(store, "demo", tag)
     assert head == old_head
     assert repo.head_of("agent/work") == old_head
@@ -254,8 +282,8 @@ def test_rollback_rewinds_agent_work_and_clears_steps(store):
     assert any(tag in e["message"] for e in log_entries)
 
 
-def test_rollback_refused_while_running(store):
-    repo, tag, _ = rollback_env(store)
+def test_rollback_refused_while_running(store, doctrine):
+    repo, tag, _ = rollback_env(store, doctrine)
     run = store.load_run("demo")
     run.transition(RunState.RUNNING)
     store.save_run("demo", run)
@@ -263,7 +291,7 @@ def test_rollback_refused_while_running(store):
         service.rollback_to_checkpoint(store, "demo", tag)
 
 
-def test_rollback_unknown_tag(store):
-    rollback_env(store)
+def test_rollback_unknown_tag(store, doctrine):
+    rollback_env(store, doctrine)
     with pytest.raises(ValueError, match="unknown checkpoint"):
         service.rollback_to_checkpoint(store, "demo", "checkpoint/9999-nope")

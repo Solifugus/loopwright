@@ -212,7 +212,7 @@ with fakes. Tasks marked `(needs: …)` must wait for the named task.
   verification fails; the tag and notification fire only on an
   independent pass; `evaluate()` reports the verify step's status.
 
-- [ ] **9.3 Single-source doctrine: the prompt points, it does not
+- [x] **9.3 Single-source doctrine: the prompt points, it does not
   restate.** Slim `PROMPT_TEMPLATE` in `devstep.py` to mechanics only:
   identify the working copy and branch, name the packet files, state the
   task-selection procedure (first unchecked task whose `(needs:)` are all
@@ -300,6 +300,6 @@ attention to mechanism.
 | 6 — Orchestrator    | 5     | 5    |
 | 7 — Primary Agent   | 1     | 1    |
 | 8 — Finalization    | 3     | 3    |
-| 9 - Trust Hardening | 7     | 3    |
+| 9 - Trust Hardening | 7     | 4    |
 
 Update checkboxes and this table in the same commit as the work.

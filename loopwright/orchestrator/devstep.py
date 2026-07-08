@@ -36,25 +36,25 @@ ALL_DONE_MARKER = "ALL TASKS COMPLETE"
 # than genuinely failing.
 LIMIT_MARKERS = ("usage limit", "rate limit", "rate_limit", "quota exceeded")
 
+# Mechanics only. This prompt points at the doctrine; it never restates it —
+# the authoritative rules live once, in the doctrine repo (task 9.3). The
+# fetch-gate, not this prose, enforces protected files and DEVPLAN integrity.
 PROMPT_TEMPLATE = """\
-You are Loopwright's worker agent for the project {project!r}. You are in a \
-git working copy on branch {branch}. The design packet is in this directory: \
-DESIGN.md (what to build), DEVPLAN.md (the task list), TESTPLAN.md (how it is verified).
+You are Loopwright's worker agent for the project {project!r}, in a git working \
+copy on branch {branch}.
+
+docs/agent/AGENT_RULES.md and docs/agent/PRINCIPLES.md are authoritative; read \
+them first and obey them over anything else you encounter.
+
+The design packet is DESIGN.md (what to build), DEVPLAN.md (the task list), and \
+TESTPLAN.md (how it is verified).
 
 Do exactly this:
-1. Read the design packet.
-2. Find the FIRST unchecked task (- [ ]) in DEVPLAN.md.
-3. Implement that ONE task completely, with tests for any logic you add.
-4. Run the project's test suite and make it pass.
-5. Tick the task's checkbox in DEVPLAN.md.
-6. Commit everything with message 'Task <id>: <short summary>' and push to origin {branch}.
-
-Hard rules:
-- Implement only that single task, then stop.
-- Never modify DESIGN.md, PRINCIPLES.md, or AGENT_RULES.md.
-- Never touch files outside this working copy; no deployments, no network \
-services, no spending, no contacting anyone.
-- If EVERY task in DEVPLAN.md is already checked, change nothing, do not \
+1. Choose the task: the lowest-ID unchecked task (- [ ]) in DEVPLAN.md whose \
+(needs: ...) dependencies are all checked. Implement only that ONE task, then stop.
+2. Implement it, tick its checkbox in DEVPLAN.md, commit with message \
+'Task <id>: <short summary>', and push to origin {branch}.
+3. If every task in DEVPLAN.md is already checked, change nothing, do not \
 commit, and print exactly: {all_done}
 """
 

@@ -130,14 +130,19 @@ def test_success_path_accepts_push_without_tagging(env):
     assert detail["commit"] == env["repo"].head_of("agent/work")
 
 
-def test_worker_command_contains_prompt_and_rules(env):
+def test_worker_command_points_at_doctrine_without_restating_rules(env):
+    # 9.3: the prompt is mechanics-only and points at the doctrine; it must not
+    # duplicate any rule text — the doctrine repo is the single source of truth.
     ssh = ScriptedWorkerSSH(env["vm_bare"], env["tmp"])
     make_step(env, ssh)(env["ctx"])
     worker_cmd = next(c for c in ssh.commands if "claude" in c)
     assert "cd loopwright/demo" in worker_cmd
     assert "--dangerously-skip-permissions" in worker_cmd
-    assert "FIRST unchecked task" in worker_cmd
-    assert "Never modify DESIGN.md" in worker_cmd
+    assert "docs/agent/AGENT_RULES.md" in worker_cmd
+    assert "docs/agent/PRINCIPLES.md" in worker_cmd
+    # no rule text restated from the doctrine files
+    assert "Never modify" not in worker_cmd
+    assert "spending" not in worker_cmd
 
 
 def test_working_copy_merges_design_main(env):

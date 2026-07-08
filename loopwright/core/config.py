@@ -31,7 +31,7 @@ class VMConfig:
 @dataclass
 class Config:
     projects_dir: Path = Path("~/.local/share/loopwright/projects")
-    doctrine_dir: Path | None = None  # clone of loopwright-doctrine; None = built-ins
+    doctrine_dir: Path | None = None  # required loopwright-doctrine checkout; None fails config check
     libvirt_uri: str = "qemu:///system"
     dev_vm: VMConfig = field(
         default_factory=lambda: VMConfig(domain="LoopWright_Dev", host="192.168.122.20")
@@ -136,13 +136,21 @@ def check_config(config: Config) -> list[tuple[str, str]]:
         findings.append(("ok", f"{label}: domain={vm.domain} ssh={vm.user}@{vm.host}"))
 
     if config.doctrine_dir is None:
-        findings.append(("warn", "doctrine_dir not set: new projects use built-in doctrine"))
-    elif (config.doctrine_dir / "PRINCIPLES.md").is_file():
-        findings.append(("ok", f"doctrine_dir: {config.doctrine_dir}"))
-    else:
         findings.append(
-            ("error", f"doctrine_dir has no PRINCIPLES.md: {config.doctrine_dir}")
+            ("error", "doctrine_dir not set: it is required to create projects")
         )
+    else:
+        missing = [
+            name
+            for name in ("PRINCIPLES.md", "AGENT_RULES.md")
+            if not (config.doctrine_dir / name).is_file()
+        ]
+        if missing:
+            findings.append(
+                ("error", f"doctrine_dir {config.doctrine_dir} is missing {', '.join(missing)}")
+            )
+        else:
+            findings.append(("ok", f"doctrine_dir: {config.doctrine_dir}"))
 
     if config.ntfy_topic:
         findings.append(("ok", f"notifications: {config.ntfy_server}/{config.ntfy_topic}"))

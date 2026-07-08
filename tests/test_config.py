@@ -116,8 +116,41 @@ def test_check_flags_uncreatable_projects_dir(tmp_path):
     assert any(level == "error" and "not creatable" in msg for level, msg in findings)
 
 
+def make_doctrine(tmp_path):
+    base = tmp_path / "doctrine"
+    base.mkdir()
+    (base / "PRINCIPLES.md").write_text("# p\n")
+    (base / "AGENT_RULES.md").write_text("# r\n")
+    return base
+
+
+def test_check_errors_without_doctrine(tmp_path):
+    config = Config(projects_dir=tmp_path / "projects")  # doctrine_dir defaults None
+    findings = check_config(config)
+    assert any(level == "error" and "doctrine_dir not set" in msg for level, msg in findings)
+
+
+def test_check_errors_on_incomplete_doctrine(tmp_path):
+    base = tmp_path / "doctrine"
+    base.mkdir()
+    (base / "PRINCIPLES.md").write_text("# p\n")  # AGENT_RULES.md missing
+    config = Config(projects_dir=tmp_path / "projects", doctrine_dir=base)
+    findings = check_config(config)
+    assert any(level == "error" and "AGENT_RULES.md" in msg for level, msg in findings)
+
+
+def test_check_ok_with_valid_doctrine(tmp_path):
+    config = Config(projects_dir=tmp_path / "projects", doctrine_dir=make_doctrine(tmp_path))
+    findings = check_config(config)
+    assert any(level == "ok" and "doctrine_dir:" in msg for level, msg in findings)
+    assert not any("doctrine" in msg and level == "error" for level, msg in findings)
+
+
 def test_cli_config_check_ok(tmp_path, capsys):
-    path = write(tmp_path, f"projects_dir: {tmp_path}/projects\n")
+    doctrine = make_doctrine(tmp_path)
+    path = write(
+        tmp_path, f"projects_dir: {tmp_path}/projects\ndoctrine_dir: {doctrine}\n"
+    )
     assert main(["config", "check", "--config", str(path)]) == 0
     out = capsys.readouterr().out
     assert "config file:" in out

@@ -19,8 +19,18 @@ def notifier():
 
 
 @pytest.fixture
-def client(store, notifier):
-    return TestClient(create_app(store, notifier=notifier))
+def doctrine(tmp_path):
+    """A minimal valid doctrine dir (create_project requires one as of 9.3)."""
+    base = tmp_path / "doctrine"
+    base.mkdir()
+    (base / "PRINCIPLES.md").write_text("# Principles\n")
+    (base / "AGENT_RULES.md").write_text("# Rules\n")
+    return base
+
+
+@pytest.fixture
+def client(store, notifier, doctrine):
+    return TestClient(create_app(store, notifier=notifier, doctrine_dir=doctrine))
 
 
 def test_index_empty(client):
@@ -115,6 +125,8 @@ def test_wizard_creates_project_and_redirects_to_editor(store, client):
 def test_wizard_prepopulates_from_doctrine(store, notifier, tmp_path):
     base = tmp_path / "doctrine"
     (base / "templates").mkdir(parents=True)
+    (base / "PRINCIPLES.md").write_text("# Principles\n")
+    (base / "AGENT_RULES.md").write_text("# Rules\n")
     (base / "templates" / "DESIGN.md").write_text("# {{PROJECT}} via doctrine\n")
     client = TestClient(create_app(store, notifier=notifier, doctrine_dir=base))
 
@@ -123,8 +135,8 @@ def test_wizard_prepopulates_from_doctrine(store, notifier, tmp_path):
     assert "# demo via doctrine" in editor.text
 
 
-def test_wizard_rejects_duplicate_name(store, client):
-    service.create_project(store, "demo")
+def test_wizard_rejects_duplicate_name(store, client, doctrine):
+    service.create_project(store, "demo", doctrine_dir=doctrine)
     response = client.post("/projects", data={"name": "demo"})
     assert response.status_code == 400
     assert "already exists" in response.text
@@ -136,8 +148,8 @@ def test_wizard_rejects_invalid_name(client):
     assert "invalid project name" in response.text
 
 
-def test_save_draft_persists_without_committing(store, client):
-    service.create_project(store, "demo")
+def test_save_draft_persists_without_committing(store, client, doctrine):
+    service.create_project(store, "demo", doctrine_dir=doctrine)
     repo = ProjectRepo(store.project_dir("demo") / "repo.git")
     head_before = repo.head_of("design/main")
 
@@ -156,8 +168,8 @@ def test_save_draft_persists_without_committing(store, client):
     assert "Draft saved" in editor.text
 
 
-def test_approve_commits_and_marks_ready(store, client):
-    service.create_project(store, "demo")
+def test_approve_commits_and_marks_ready(store, client, doctrine):
+    service.create_project(store, "demo", doctrine_dir=doctrine)
     repo = ProjectRepo(store.project_dir("demo") / "repo.git")
     head_before = repo.head_of("design/main")
 
@@ -172,8 +184,8 @@ def test_approve_commits_and_marks_ready(store, client):
     assert store.load_run("demo").state is RunState.READY
 
 
-def test_approve_blocked_while_running_shows_error(store, client):
-    service.create_project(store, "demo")
+def test_approve_blocked_while_running_shows_error(store, client, doctrine):
+    service.create_project(store, "demo", doctrine_dir=doctrine)
     run = store.load_run("demo")
     run.transition(RunState.READY)
     run.transition(RunState.RUNNING)
@@ -252,8 +264,8 @@ def test_unknown_action_shows_error(store, client):
     assert store.load_run("demo").state is RunState.READY
 
 
-def test_dashboard_lists_checkpoints(store, client):
-    service.create_project(store, "demo")
+def test_dashboard_lists_checkpoints(store, client, doctrine):
+    service.create_project(store, "demo", doctrine_dir=doctrine)
     repo = ProjectRepo(store.project_dir("demo") / "repo.git")
     repo.tag_checkpoint("hello-world")
     response = client.get("/projects/demo/dashboard")
@@ -263,8 +275,8 @@ def test_dashboard_lists_checkpoints(store, client):
 # --- rollback from the UI (task 6.5) ---
 
 
-def rollback_ready(store):
-    service.create_project(store, "demo")
+def rollback_ready(store, doctrine):
+    service.create_project(store, "demo", doctrine_dir=doctrine)
     repo = ProjectRepo(store.project_dir("demo") / "repo.git")
     tag = repo.tag_checkpoint("good")
     old_head = repo.head_of("agent/work")
@@ -276,14 +288,14 @@ def rollback_ready(store):
     return repo, tag, old_head
 
 
-def test_rollback_button_shown_when_safe(store, client):
-    rollback_ready(store)
+def test_rollback_button_shown_when_safe(store, client, doctrine):
+    rollback_ready(store, doctrine)
     response = client.get("/projects/demo/dashboard")
     assert "Roll back here" in response.text
 
 
-def test_rollback_button_hidden_while_running(store, client):
-    rollback_ready(store)
+def test_rollback_button_hidden_while_running(store, client, doctrine):
+    rollback_ready(store, doctrine)
     run = store.load_run("demo")
     run.transition(RunState.RUNNING)
     store.save_run("demo", run)
@@ -291,15 +303,15 @@ def test_rollback_button_hidden_while_running(store, client):
     assert "Roll back here" not in response.text
 
 
-def test_rollback_post_rewinds_and_refreshes_dashboard(store, client):
-    repo, tag, old_head = rollback_ready(store)
+def test_rollback_post_rewinds_and_refreshes_dashboard(store, client, doctrine):
+    repo, tag, old_head = rollback_ready(store, doctrine)
     response = client.post("/projects/demo/rollback", data={"tag": tag})
     assert response.status_code == 200
     assert repo.head_of("agent/work") == old_head
 
 
-def test_rollback_post_while_running_shows_error(store, client):
-    repo, tag, old_head = rollback_ready(store)
+def test_rollback_post_while_running_shows_error(store, client, doctrine):
+    repo, tag, old_head = rollback_ready(store, doctrine)
     run = store.load_run("demo")
     run.transition(RunState.RUNNING)
     store.save_run("demo", run)

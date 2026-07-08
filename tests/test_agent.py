@@ -181,6 +181,23 @@ def store(tmp_path):
     return ProjectStore(tmp_path / "projects")
 
 
+@pytest.fixture(autouse=True)
+def _doctrine(tmp_path, monkeypatch):
+    """create_project requires doctrine (9.3); supply a valid one by default so
+    these chat-panel tests can stay focused on the assistant."""
+    base = tmp_path / "doctrine"
+    base.mkdir()
+    (base / "PRINCIPLES.md").write_text("# p\n")
+    (base / "AGENT_RULES.md").write_text("# r\n")
+    real = service.create_project
+    monkeypatch.setattr(
+        service,
+        "create_project",
+        lambda store, name, doctrine_dir=base: real(store, name, doctrine_dir=doctrine_dir),
+    )
+    return base
+
+
 def make_client(store, assistant=None):
     return TestClient(create_app(store, assistant=assistant))
 

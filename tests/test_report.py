@@ -15,6 +15,23 @@ def store(tmp_path):
     return ProjectStore(tmp_path / "projects")
 
 
+@pytest.fixture(autouse=True)
+def _doctrine(tmp_path, monkeypatch):
+    """create_project requires doctrine (9.3); these tests don't exercise it, so
+    supply a valid doctrine dir by default and let callers stay doctrine-free."""
+    base = tmp_path / "doctrine"
+    base.mkdir()
+    (base / "PRINCIPLES.md").write_text("# p\n")
+    (base / "AGENT_RULES.md").write_text("# r\n")
+    real = service.create_project
+    monkeypatch.setattr(
+        service,
+        "create_project",
+        lambda store, name, doctrine_dir=base: real(store, name, doctrine_dir=doctrine_dir),
+    )
+    return base
+
+
 def finished_run(store, name="demo"):
     """A project that just finished its last cycle and sits in REVIEW."""
     project = service.create_project(store, name)
