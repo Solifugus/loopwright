@@ -24,6 +24,7 @@ from enum import Enum
 from loopwright.core.model import Run
 
 DEV_STEP = "dev-code"
+VERIFY_STEP = "verify-tests"
 DEPLOY_STEP = "deploy-test"
 
 
@@ -43,6 +44,9 @@ class Review:
     tasks_remaining: bool
     checkpoint: str | None
     failed_step: str | None
+    # Defaults True so callers that predate the verify step still construct a
+    # Review; evaluate() always sets it from the recorded step.
+    verify_ok: bool = True
 
 
 @dataclass
@@ -54,15 +58,19 @@ class Decision:
 
 def evaluate(run: Run) -> Review:
     dev = run.step_result(DEV_STEP)
+    verify = run.step_result(VERIFY_STEP)
     deploy = run.step_result(DEPLOY_STEP)
     worker_ok = bool(dev and dev["status"] == "ok")
     return Review(
         worker_ok=worker_ok,
+        verify_ok=bool(verify and verify["status"] == "ok"),
         deployment_ok=bool(deploy and deploy["status"] == "ok"),
         tasks_remaining=(
             bool(dev["detail"].get("tasks_remaining", True)) if worker_ok else True
         ),
-        checkpoint=dev["detail"].get("checkpoint") if dev else None,
+        # The checkpoint is tagged by the verify step, so it is the authority
+        # for "which independently-verified checkpoint this cycle produced."
+        checkpoint=verify["detail"].get("checkpoint") if verify else None,
         failed_step=next((s["name"] for s in run.steps if s["status"] == "failed"), None),
     )
 

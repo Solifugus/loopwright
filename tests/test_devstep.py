@@ -110,7 +110,10 @@ def make_step(env, ssh, vm=None, **kwargs):
     )
 
 
-def test_success_path_tags_checkpoint_and_notifies(env):
+def test_success_path_accepts_push_without_tagging(env):
+    # 9.2: the dev step only *accepts* a worker push (fetch-gate passed). The
+    # checkpoint tag is earned later by the independent verify-tests step, so
+    # dev-code must NOT tag or emit CHECKPOINT_PASSED itself.
     ssh = ScriptedWorkerSSH(env["vm_bare"], env["tmp"])
     vm = DryRunVM("LoopWright_Dev", state=SHUT_OFF)
     step = make_step(env, ssh, vm=vm)
@@ -119,10 +122,10 @@ def test_success_path_tags_checkpoint_and_notifies(env):
 
     assert vm.is_running()  # step started the VM
     assert detail["tasks_remaining"] is True
-    assert detail["checkpoint"] == "checkpoint/0001-worker-session"
-    assert env["repo"].checkpoints() == ["checkpoint/0001-worker-session"]
+    assert "checkpoint" not in detail  # tagging moved to verify-tests
+    assert env["repo"].checkpoints() == []
     events = [event for event, _, _ in env["notifier"].events]
-    assert Event.CHECKPOINT_PASSED in events
+    assert Event.CHECKPOINT_PASSED not in events
     # the worker's commit actually landed on the host's agent/work
     assert detail["commit"] == env["repo"].head_of("agent/work")
 
@@ -229,7 +232,10 @@ def test_engine_resume_after_limit_reruns_step(env):
     run = env["store"].load_run("demo")
     assert run.state is RunState.REVIEW
     assert run.step_result("dev-code")["status"] == "ok"
-    assert run.step_result("dev-code")["detail"]["checkpoint"] == "checkpoint/0001-worker-session"
+    # dev-code accepts the push but no longer tags a checkpoint (moved to 9.2's
+    # verify-tests step); the commit still landed on agent/work.
+    assert "checkpoint" not in run.step_result("dev-code")["detail"]
+    assert env["repo"].head_of("agent/work") == run.step_result("dev-code")["detail"]["commit"]
 
 
 def test_engine_fails_run_on_worker_failure(env):

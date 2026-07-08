@@ -59,6 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_loop_parser.add_argument("--retry-limit", type=int, default=2)
     run_loop_parser.add_argument("--max-cycles", type=int, default=25)
     run_loop_parser.add_argument("--dev-timeout", type=int, default=3600)
+    run_loop_parser.add_argument("--verify-timeout", type=int, default=1800)
     run_loop_parser.add_argument("--deploy-timeout", type=int, default=1800)
     run_loop_parser.add_argument(
         "--limit-resume-minutes",
@@ -217,12 +218,14 @@ def cmd_run_loop(args) -> int:
     from loopwright.orchestrator.devstep import dev_step_from_config
     from loopwright.orchestrator.engine import EngineError
     from loopwright.orchestrator.loop import run_loop
+    from loopwright.orchestrator.verifystep import verify_step_from_config
 
     config = load_config()
     store = ProjectStore(config.projects_dir)
     try:
         steps = [
             dev_step_from_config(config, store, args.project, timeout=args.dev_timeout),
+            verify_step_from_config(config, store, args.project, timeout=args.verify_timeout),
             deploy_step_from_config(config, store, args.project, timeout=args.deploy_timeout),
         ]
         resume_minutes = (

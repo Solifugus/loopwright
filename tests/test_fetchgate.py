@@ -226,7 +226,8 @@ def test_step_rejects_devplan_deletion_and_restores_branch(env):
     assert env["repo"].checkpoints() == []
 
 
-def test_step_accepts_legal_push_and_tags_checkpoint(env):
+def test_step_accepts_legal_push(env):
+    before = env["repo"].head_of("agent/work")
     ssh = ContentWorkerSSH(
         env["vm_bare"],
         env["tmp"],
@@ -236,8 +237,9 @@ def test_step_accepts_legal_push_and_tags_checkpoint(env):
         },
     )
     detail = make_step(env, ssh)(env["ctx"])
-    assert detail["checkpoint"] == "checkpoint/0001-worker-session"
-    assert env["repo"].checkpoints() == ["checkpoint/0001-worker-session"]
+    # a legal push is accepted: the branch advances, no rule violation fires.
+    # (Checkpoint tagging is the verify-tests step's job as of 9.2.)
+    assert detail["commit"] == env["repo"].head_of("agent/work") != before
+    assert "checkpoint" not in detail
     events = [event for event, _, _ in env["notifier"].events]
     assert Event.RULE_VIOLATION not in events
-    assert Event.CHECKPOINT_PASSED in events

@@ -93,6 +93,12 @@ def default_packet(name: str) -> dict[str, str]:
         "TESTPLAN.md": (
             f"# {name} — Test Plan\n\n"
             "How the product is verified, including deployment acceptance tests.\n\n"
+            "The project MUST provide these scripts so the Orchestrator can verify\n"
+            "it independently — a checkpoint is only tagged once they pass:\n\n"
+            "- `scripts/test.sh` — runs the full suite from a clean clone; exits\n"
+            "  nonzero on any failure.\n"
+            "- `scripts/deploy.sh` — installs the product on a bare machine.\n"
+            "- `scripts/acceptance.sh` — verifies the deployed product works.\n\n"
             "- ...\n"
         ),
     }

@@ -68,13 +68,31 @@ def test_retry_limit_zero_pauses_immediately():
 
 def test_evaluate_full_success():
     run = Run()
-    run.record_step("dev-code", "ok", "t", {"tasks_remaining": True, "checkpoint": "c/0001-x"})
+    run.record_step("dev-code", "ok", "t", {"tasks_remaining": True})
+    # 9.2: the checkpoint is tagged by (and recorded on) the verify step.
+    run.record_step("verify-tests", "ok", "t", {"checkpoint": "c/0001-x"})
     run.record_step("deploy-test", "ok", "t", {})
     rev = evaluate(run)
-    assert rev.worker_ok and rev.deployment_ok
+    assert rev.worker_ok and rev.verify_ok and rev.deployment_ok
     assert rev.tasks_remaining is True
     assert rev.checkpoint == "c/0001-x"
     assert rev.failed_step is None
+
+
+def test_evaluate_reports_verify_step_status():
+    """evaluate() surfaces the independent verify step's pass/fail (9.2)."""
+    passed = Run()
+    passed.record_step("dev-code", "ok", "t", {"tasks_remaining": True})
+    passed.record_step("verify-tests", "ok", "t", {"checkpoint": "c/1"})
+    assert evaluate(passed).verify_ok is True
+
+    failed = Run()
+    failed.record_step("dev-code", "ok", "t", {"tasks_remaining": True})
+    failed.record_step("verify-tests", "failed", "t", {"error": "2 tests failed"})
+    rev = evaluate(failed)
+    assert rev.verify_ok is False
+    assert rev.failed_step == "verify-tests"
+    assert rev.checkpoint is None  # nothing tagged when verification fails
 
 
 def test_evaluate_all_done():

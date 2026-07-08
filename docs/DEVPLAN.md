@@ -187,7 +187,7 @@ with fakes. Tasks marked `(needs: …)` must wait for the named task.
   the branch ref restored; a DEVPLAN task deletion is rejected; a legal
   push (code + tick + appended task) passes untouched.
 
-- [ ] **9.2 Independent verification step — the worker's word is not
+- [x] **9.2 Independent verification step — the worker's word is not
   evidence.** New engine step `verify-tests` between `dev-code` and
   `deploy-test`, built like `DeploymentVMStep` (injected vm/ssh/repo
   collaborators). Convention: every project must carry `scripts/test.sh`
@@ -291,6 +291,6 @@ attention to mechanism.
 | 6 — Orchestrator    | 5     | 5    |
 | 7 — Primary Agent   | 1     | 1    |
 | 8 — Finalization    | 3     | 3    |
-| 9 - Trust Hardening | 6     | 1    |
+| 9 - Trust Hardening | 6     | 2    |
 
 Update checkboxes and this table in the same commit as the work.

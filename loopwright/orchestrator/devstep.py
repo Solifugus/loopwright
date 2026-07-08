@@ -91,7 +91,6 @@ class DeveloperVMStep:
         remote_work_dir: str,
         worker_command=default_worker_command,
         timeout: int = 3600,
-        checkpoint_slug: str = "worker-session",
     ):
         self.project = project
         self.repo = repo
@@ -102,7 +101,6 @@ class DeveloperVMStep:
         self.remote_work_dir = remote_work_dir
         self.worker_command = worker_command
         self.timeout = timeout
-        self.checkpoint_slug = checkpoint_slug
 
     def _sync_repo_to_vm(self, ctx) -> None:
         parent = posixpath.dirname(self.remote_repo_dir) or "."
@@ -184,16 +182,13 @@ class DeveloperVMStep:
 
         self._enforce_fetch_gate(ctx, before, after)
 
-        tag = self.repo.tag_checkpoint(self.checkpoint_slug)
-        ctx.log.log(self.name, f"checkpoint tagged: {tag}")
-        if ctx.notifier is not None:
-            ctx.notifier.notify(
-                Event.CHECKPOINT_PASSED, f"{tag} at {after[:10]}", project=self.project
-            )
+        # No checkpoint here: a worker push is only *accepted* at this step.
+        # The tag is earned later, in verify-tests, after the Orchestrator
+        # independently re-runs the suite from a fresh clone.
+        ctx.log.log(self.name, f"worker push accepted at {after[:10]}")
         return {
             "tasks_remaining": True,
             "commit": after,
-            "checkpoint": tag,
             "output_tail": tail,
         }
 
